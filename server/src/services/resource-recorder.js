@@ -1,5 +1,7 @@
 'use strict';
 
+const qs = require('qs');
+
 const MAX_RECORDS = 500;
 
 const DEFAULT_FILTERS = {
@@ -25,47 +27,79 @@ module.exports = () => {
     return input.split('?')[0] || '/';
   };
 
+  const getUrlParts = (url = '') => {
+    const raw = String(url || '');
+    const [pathnamePart, queryStringPart] = raw.split('?');
+    const pathname = normalizePath(pathnamePart || '/');
+    const queryString = queryStringPart || '';
+
+    return {
+      pathname,
+      queryString,
+      segments: pathname.split('/').filter(Boolean)
+    };
+  };
+
   const parseQuery = (url = '') => {
-    const queryString = String(url || '').split('?')[1];
+    const { queryString } = getUrlParts(url);
     if (!queryString) return {};
 
-    const params = new URLSearchParams(queryString);
-    const result = {};
-
-    for (const [key, value] of params.entries()) {
-      if (Object.prototype.hasOwnProperty.call(result, key)) {
-        if (Array.isArray(result[key])) {
-          result[key].push(value);
-        } else {
-          result[key] = [result[key], value];
-        }
-      } else {
-        result[key] = value;
-      }
-    }
-
-    return result;
+    return qs.parse(queryString, {
+      ignoreQueryPrefix: true,
+      depth: 20,
+      arrayLimit: 100,
+      allowDots: false
+    });
   };
 
   const summarizeRequestRules = (method, query, body) => {
     const rules = {};
+    const upperMethod = String(method).toUpperCase();
 
-    if (String(method).toUpperCase() === 'GET' && query && Object.keys(query).length > 0) {
+    if (query && typeof query === 'object' && Object.keys(query).length > 0) {
       if (query.filters || query['filters']) {
         rules.filters = query.filters || query['filters'];
       }
 
+      if (query.fields || query['fields']) {
+        const fields = query.fields || query['fields'];
+        if (Array.isArray(fields)) {
+          rules.allowedFields = fields.map((f) => String(f));
+        } else if (typeof fields === 'string') {
+          rules.allowedFields = [fields];
+        }
+      }
+
       if (query.populate || query['populate']) {
         const populate = query.populate || query['populate'];
+
         if (Array.isArray(populate)) {
-          rules.allowedPopulate = populate;
+          rules.allowedPopulate = populate.map((p) => String(p));
         } else if (typeof populate === 'string') {
           rules.allowedPopulate = [populate];
+        } else if (typeof populate === 'object') {
+          rules.allowedPopulate = Object.keys(populate);
         }
+      }
+
+      if (query.sort || query['sort']) {
+        rules.allowedSort = query.sort || query['sort'];
+      }
+
+      if (query.pagination || query['pagination']) {
+        rules.defaultPagination = query.pagination || query['pagination'];
+      }
+
+      if (query.status || query['status']) {
+        rules.allowedStatus = query.status || query['status'];
+      }
+
+      if (query.locale || query['locale']) {
+        rules.allowedLocale = query.locale || query['locale'];
       }
     }
 
-    if (body && typeof body === 'object' && Object.keys(body).length > 0) {
+    if ((upperMethod === 'POST' || upperMethod === 'PUT' || upperMethod === 'PATCH') && body && typeof body === 'object' && Object.keys(body).length > 0) {
       rules.forceBodyFields = body;
     }
 
@@ -140,6 +174,8 @@ module.exports = () => {
         displayName: `${entry.method} ${entry.path}`,
         type: entry.matched ? 'extended' : 'standard',
         pathPattern: entry.path,
+        urlParts: entry.urlParts || null,
+        queryParamsJson: entry.queryParamsJson || {},
         requestRules: entry.suggestedRequestRules || {}
       }));
     },
@@ -151,6 +187,7 @@ module.exports = () => {
       const methodKey = method.toLowerCase();
       const path = normalizePath(payload.path || payload.url || '/');
       const rawUrl = String(payload.url || '');
+      const urlParts = getUrlParts(rawUrl || path);
       const parsedQuery = (payload.query && typeof payload.query === 'object') ? payload.query : parseQuery(rawUrl);
       const body = payload.body && typeof payload.body === 'object' ? payload.body : null;
       const suggestedRequestRules = summarizeRequestRules(method, parsedQuery, body);
@@ -170,6 +207,8 @@ module.exports = () => {
         existing.lastStatus = Number(payload.status) || existing.lastStatus || null;
         existing.matched = Boolean(payload.matched);
         existing.exampleUrl = rawUrl || existing.exampleUrl;
+        existing.urlParts = urlParts || existing.urlParts;
+        existing.queryParamsJson = Object.keys(parsedQuery).length ? parsedQuery : existing.queryParamsJson;
         existing.exampleQuery = Object.keys(parsedQuery).length ? parsedQuery : existing.exampleQuery;
         existing.exampleBody = body || existing.exampleBody;
         if (Object.keys(suggestedRequestRules).length > 0) {
@@ -188,6 +227,8 @@ module.exports = () => {
         lastStatus: Number(payload.status) || null,
         matched: Boolean(payload.matched),
         exampleUrl: rawUrl || null,
+        urlParts,
+        queryParamsJson: Object.keys(parsedQuery).length ? parsedQuery : {},
         exampleQuery: Object.keys(parsedQuery).length ? parsedQuery : null,
         exampleBody: body,
         suggestedRequestRules

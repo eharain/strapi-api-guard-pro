@@ -69,7 +69,63 @@ module.exports = ({ strapi }) => ({
         ctx.query.populate = nextPopulate;
       }
     }
-    
+
+    if (Array.isArray(rules.allowedFields) && rules.allowedFields.length > 0) {
+      ctx.query = ctx.query || {};
+
+      const allowedFieldSet = new Set([
+        ...rules.allowedFields.map(field => String(field)),
+        'id',
+        'documentId'
+      ]);
+
+      const allowedPopulateRoots = new Set(
+        rules.allowedFields
+          .map(field => String(field).split('.')[0])
+          .filter(Boolean)
+      );
+
+      const requestedFields = this.normalizeListParam(ctx.query.fields);
+      if (requestedFields.length > 0) {
+        const nextFields = requestedFields.filter(field => allowedFieldSet.has(field));
+        ctx.query.fields = nextFields.length > 0 ? nextFields : ['id', 'documentId'];
+      } else {
+        ctx.query.fields = Array.from(allowedFieldSet);
+      }
+
+      if (ctx.query.populate) {
+        if (ctx.query.populate === '*') {
+          const fullPopulate = Array.from(allowedPopulateRoots);
+          if (fullPopulate.length > 0) {
+            ctx.query.populate = fullPopulate;
+          } else {
+            delete ctx.query.populate;
+          }
+        } else if (Array.isArray(ctx.query.populate)) {
+          ctx.query.populate = ctx.query.populate.filter(pop => allowedPopulateRoots.has(String(pop)));
+          if (ctx.query.populate.length === 0) {
+            delete ctx.query.populate;
+          }
+        } else if (typeof ctx.query.populate === 'string') {
+          if (!allowedPopulateRoots.has(ctx.query.populate)) {
+            delete ctx.query.populate;
+          }
+        } else if (typeof ctx.query.populate === 'object') {
+          const nextPopulate = {};
+          for (const key of Object.keys(ctx.query.populate)) {
+            if (allowedPopulateRoots.has(key)) {
+              nextPopulate[key] = ctx.query.populate[key];
+            }
+          }
+          if (Object.keys(nextPopulate).length > 0) {
+            ctx.query.populate = nextPopulate;
+          } else {
+            delete ctx.query.populate;
+          }
+        }
+      }
+    }
+
     // Block parameters
     if (Array.isArray(rules.blockParams)) {
       for (const param of rules.blockParams) {
@@ -83,14 +139,14 @@ module.exports = ({ strapi }) => ({
   
   resolveToken(value, context) {
     if (typeof value !== 'string' || !value.startsWith('$')) return value;
-    
+
     const parts = value.slice(1).split('.');
     let result = context;
     for (const part of parts) {
       if (result === undefined || result === null) return undefined;
       result = result[part];
     }
-    
+
     // Handle special tokens
     if (result === '$today') {
       return new Date().toISOString().split('T')[0];
@@ -98,7 +154,21 @@ module.exports = ({ strapi }) => ({
     if (result === '$now') {
       return new Date().toISOString();
     }
-    
+
     return result;
+  },
+
+  normalizeListParam(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(v => String(v));
+    if (typeof value === 'string') return [value];
+
+    if (typeof value === 'object') {
+      return Object.values(value)
+        .map(v => String(v))
+        .filter(Boolean);
+    }
+
+    return [];
   }
 });

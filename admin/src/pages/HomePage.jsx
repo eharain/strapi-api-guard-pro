@@ -253,6 +253,14 @@ export default function HomePage() {
   }
 
   function buildResourceFromSuggestion(item) {
+    const extensiveDescription = [
+      `Suggested from recorder (${item.count || 1} hit${(item.count || 1) > 1 ? 's' : ''})`,
+      item.exampleUrl ? `Example URL: ${item.exampleUrl}` : null,
+      item.lastStatus ? `Last status: ${item.lastStatus}` : null,
+      item.firstSeenAt ? `First seen: ${item.firstSeenAt}` : null,
+      item.lastSeenAt ? `Last seen: ${item.lastSeenAt}` : null
+    ].filter(Boolean).join(' | ');
+
     setActiveTab('resources');
     setResourceSubTab('manual');
     setEditingRecord(null);
@@ -263,8 +271,17 @@ export default function HomePage() {
       type: item.type || 'standard',
       method: item.method || 'GET',
       pathPattern: item.pathPattern || item.path || '',
-      requestRules: item.requestRules || {},
-      description: `Suggested from recorder (${item.count || 1} hit${(item.count || 1) > 1 ? 's' : ''})`
+      requestRules: {
+        ...(item.requestRules || {}),
+        recordedUrlParts: item.urlParts || null,
+        recordedQueryParams: item.queryParamsJson || {},
+        recordedBodySample: item.exampleBody || null
+      },
+      responseRules: {
+        exampleQuery: item.exampleQuery || null,
+        exampleBody: item.exampleBody || null
+      },
+      description: extensiveDescription
     });
     setPanelOpen(true);
   }
@@ -550,6 +567,42 @@ export default function HomePage() {
                   <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
                 ))}
               </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Controller Action"
+                value={formData.controllerAction || ''}
+                onChange={e => setFormData({ ...formData, controllerAction: e.target.value })}
+                hint="e.g., api::article.article.find"
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="Request Rules (JSON)"
+                value={JSON.stringify(formData.requestRules || {}, null, 2)}
+                onChange={e => {
+                  try {
+                    const next = JSON.parse(e.target.value || '{}');
+                    setFormData({ ...formData, requestRules: next });
+                  } catch {
+                    // keep previous valid JSON while editing invalid text
+                  }
+                }}
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="Response Rules (JSON)"
+                value={JSON.stringify(formData.responseRules || {}, null, 2)}
+                onChange={e => {
+                  try {
+                    const next = JSON.parse(e.target.value || '{}');
+                    setFormData({ ...formData, responseRules: next });
+                  } catch {
+                    // keep previous valid JSON while editing invalid text
+                  }
+                }}
+              />
             </Box>
           </>
         );
@@ -1001,6 +1054,21 @@ export default function HomePage() {
                                 <Typography variant="pi" textColor="neutral600">
                                   Hits: {item.count} · Last status: {item.lastStatus ?? '-'} · Suggested type: {item.type}
                                 </Typography>
+                                {item.exampleUrl && (
+                                  <Typography variant="pi" textColor="neutral500" style={{ wordBreak: 'break-all' }}>
+                                    URL: {item.exampleUrl}
+                                  </Typography>
+                                )}
+                                {(item.exampleQuery || item.exampleBody) && (
+                                  <Typography variant="pi" textColor="neutral500">
+                                    Has captured query/body context
+                                  </Typography>
+                                )}
+                                {item.urlParts && (
+                                  <Typography variant="pi" textColor="neutral500" style={{ wordBreak: 'break-all' }}>
+                                    Path: {item.urlParts.pathname} | Segments: {(item.urlParts.segments || []).join(' / ') || '-'}
+                                  </Typography>
+                                )}
                               </Box>
                               <Button size="S" onClick={() => buildResourceFromSuggestion(item)}>Create Resource</Button>
                             </Flex>

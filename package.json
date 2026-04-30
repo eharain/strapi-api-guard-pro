@@ -1,6 +1,6 @@
 {
   "name": "strapi-api-guard-pro",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Enterprise-grade API security and access control plugin for Strapi 5",
   "license": "MIT",
   "author": {
@@ -33,7 +33,9 @@
     "clean": "rimraf dist",
     "prepublishOnly": "npm run clean && npm run build"
   },
-  "dependencies": {},
+  "dependencies": {
+    "qs": "6.15.1"
+  },
   "peerDependencies": {
     "@strapi/strapi": "^5.0.0",
     "react": "^17.0.0 || ^18.0.0",

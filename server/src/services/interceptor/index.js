@@ -10,6 +10,7 @@ module.exports = ({ strapi }) => ({
     const method = ctx.method;
     const rawUrl = ctx.url || ctx.request?.url || ctx.path || '';
     const path = rawUrl.split('?')[0];
+    const query = ctx.query && typeof ctx.query === 'object' ? ctx.query : {};
 
     const resources = await strapi.db.query('plugin::api-guard-pro.resource').findMany({
       where: { isActive: true },
@@ -51,7 +52,7 @@ module.exports = ({ strapi }) => ({
           method,
           path,
           url: rawUrl,
-          query: ctx.query,
+          query,
           body: ctx.request?.body,
           matched: false,
           status: null
@@ -92,7 +93,7 @@ module.exports = ({ strapi }) => ({
 
     if (!allowed) {
       if (shouldRecord) {
-        recorder.record({ method, path, url: rawUrl, query: ctx.query, body: ctx.request?.body, matched: true, status: 403 });
+        recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
       }
 
       if (!context.user) return ctx.unauthorized('Authentication required');
@@ -103,7 +104,7 @@ module.exports = ({ strapi }) => ({
       const userRoleType = context.user?.role?.type || context.user?.role?.name || 'public';
       if (context.domain.strapiRoleType && context.domain.strapiRoleType !== userRoleType) {
         if (shouldRecord) {
-          recorder.record({ method, path, url: rawUrl, query: ctx.query, body: ctx.request?.body, matched: true, status: 403 });
+          recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
         }
 
         return ctx.forbidden('User role cannot access this domain');
@@ -115,7 +116,7 @@ module.exports = ({ strapi }) => ({
     await next();
 
     if (shouldRecord) {
-      recorder.record({ method, path, url: rawUrl, query: ctx.query, body: ctx.request?.body, matched: true, status: ctx.status || 200 });
+      recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: ctx.status || 200 });
     }
 
     ctx.body = await responseService.process(ctx.body, matchedResource);
