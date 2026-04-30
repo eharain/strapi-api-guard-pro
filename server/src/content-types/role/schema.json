@@ -1,0 +1,63 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_roles",
+  "info": {
+    "singularName": "role",
+    "pluralName": "roles",
+    "displayName": "Role",
+    "description": "Permission role within a domain"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "level": {
+      "type": "enumeration",
+      "enum": ["staff", "manager", "admin", "super-admin"],
+      "required": true,
+      "default": "staff"
+    },
+    "description": {
+      "type": "text"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "domain": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.domain",
+      "inversedBy": "roles"
+    },
+    "groups": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::api-guard-pro.group",
+      "mappedBy": "roles"
+    },
+    "grants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::api-guard-pro.grant",
+      "mappedBy": "role"
+    }
+  }
+}

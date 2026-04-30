@@ -1,0 +1,66 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_groups",
+  "info": {
+    "singularName": "group",
+    "pluralName": "groups",
+    "displayName": "Group",
+    "description": "Collection of resources for role assignment"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "isBundle": {
+      "type": "boolean",
+      "default": false
+    },
+    "domain": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.domain",
+      "inversedBy": "groups"
+    },
+    "parentGroup": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.group"
+    },
+    "resources": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::api-guard-pro.resource",
+      "inversedBy": "groups"
+    },
+    "roles": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::api-guard-pro.role",
+      "inversedBy": "groups"
+    }
+  }
+}

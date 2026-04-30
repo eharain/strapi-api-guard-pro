@@ -1,0 +1,74 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_policies",
+  "info": {
+    "singularName": "policy",
+    "pluralName": "policies",
+    "displayName": "Policy",
+    "description": "Permission rule for resources"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "actions": {
+      "type": "json",
+      "required": true,
+      "default": ["read"]
+    },
+    "effect": {
+      "type": "enumeration",
+      "enum": ["allow", "deny"],
+      "default": "allow",
+      "required": true
+    },
+    "conditions": {
+      "type": "json",
+      "default": []
+    },
+    "fields": {
+      "type": "json",
+      "default": []
+    },
+    "priority": {
+      "type": "integer",
+      "default": 0
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "resource": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.resource",
+      "inversedBy": "policies"
+    },
+    "grants": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::api-guard-pro.grant",
+      "mappedBy": "policy"
+    }
+  }
+}

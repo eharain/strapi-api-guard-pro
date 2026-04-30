@@ -1,0 +1,98 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_resources",
+  "info": {
+    "singularName": "resource",
+    "pluralName": "resources",
+    "displayName": "Resource",
+    "description": "API resource with security rules"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "displayName": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": ["standard", "extended", "alias"],
+      "default": "standard",
+      "required": true
+    },
+    "method": {
+      "type": "enumeration",
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      "required": true
+    },
+    "path": {
+      "type": "string",
+      "required": true
+    },
+    "aliasPath": {
+      "type": "string"
+    },
+    "uid": {
+      "type": "string"
+    },
+    "controllerAction": {
+      "type": "string"
+    },
+    "isPublic": {
+      "type": "boolean",
+      "default": false
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "requestRules": {
+      "type": "json",
+      "default": {}
+    },
+    "responseRules": {
+      "type": "json",
+      "default": {}
+    },
+    "domain": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.domain",
+      "inversedBy": "resources"
+    },
+    "parentResource": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.resource"
+    },
+    "groups": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::api-guard-pro.group",
+      "mappedBy": "resources"
+    },
+    "policies": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::api-guard-pro.policy",
+      "mappedBy": "resource"
+    }
+  }
+}

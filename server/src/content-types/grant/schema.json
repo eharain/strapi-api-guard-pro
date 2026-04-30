@@ -1,0 +1,46 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_grants",
+  "info": {
+    "singularName": "grant",
+    "pluralName": "grants",
+    "displayName": "Grant",
+    "description": "Assigns policies to roles"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "key": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": true
+    },
+    "role": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.role",
+      "inversedBy": "grants",
+      "required": true
+    },
+    "policy": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::api-guard-pro.policy",
+      "inversedBy": "grants",
+      "required": true
+    }
+  }
+}
