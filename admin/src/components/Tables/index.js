@@ -1,3 +1,3 @@
-export { default as DataTable } from './DataTable';
-export { default as DomainTable } from './DomainTable';
-export { default as ResourceTable } from './ResourceTable';
+export { default as DataTable } from './DataTable.jsx';
+export { default as DomainTable } from './DomainTable.jsx';
+export { default as ResourceTable } from './ResourceTable.jsx';

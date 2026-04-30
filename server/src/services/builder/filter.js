@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   build(input = {}) {
     return input;
   },

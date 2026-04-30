@@ -61,7 +61,7 @@ export const validatePolicy = (data) => {
   return errors;
 };
 
-export default {
+module.exports = {
   validateDomain,
   validateResource,
   validateRole,

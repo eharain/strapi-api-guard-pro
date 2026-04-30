@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   process(body, resource) {
     if (!body || typeof body !== 'object') return body;
     

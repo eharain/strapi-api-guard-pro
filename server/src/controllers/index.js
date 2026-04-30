@@ -1,7 +1,7 @@
 'use strict';
 
-import adminController from './admin';
+const adminController = require('./admin');
 
-export default {
+module.exports = {
   admin: adminController
 };

@@ -26,7 +26,7 @@ const resolveToken = (value, context) => {
   return result;
 };
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   evaluate(conditions = [], context = {}) {
     if (!Array.isArray(conditions) || conditions.length === 0) return true;
     

@@ -45,6 +45,12 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.domain"
+    },
+    "users": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user",
+      "mappedBy": "permission_roles"
     }
   }
 }

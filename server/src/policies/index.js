@@ -1,9 +1,9 @@
 'use strict';
 
-import hasDomainAccess from './has-domain-access';
-import hasResourceAccess from './has-resource-access';
+const hasDomainAccess = require('./has-domain-access');
+const hasResourceAccess = require('./has-resource-access');
 
-export default {
+module.exports = {
   'has-domain-access': hasDomainAccess,
   'has-resource-access': hasResourceAccess
 };

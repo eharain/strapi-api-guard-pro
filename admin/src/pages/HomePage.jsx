@@ -11,10 +11,6 @@ import {
   Divider,
   Loader,
   Alert,
-  ModalLayout,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
   Textarea,
   Switch,
   JSONInput
@@ -37,6 +33,11 @@ const EFFECT_OPTIONS = ['allow', 'deny'];
 const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const RESOURCE_TYPES = ['standard', 'extended', 'alias'];
 const MATCH_MODE_OPTIONS = ['header', 'query', 'both'];
+const RESOURCE_SUB_TABS = [
+  { key: 'recorder', label: 'Recorder' },
+  { key: 'builder', label: 'Builder' },
+  { key: 'manual', label: 'Manual' }
+];
 
 const endpoint = (path) => `/api-guard-pro${path}`;
 const labelFor = (rec) => {
@@ -95,6 +96,17 @@ export default function HomePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', variant: 'default' });
   const [userSearch, setUserSearch] = useState('');
+  const [resourceSubTab, setResourceSubTab] = useState('recorder');
+  const [resourceRecorder, setResourceRecorder] = useState({
+    enabled: false,
+    filters: {
+      methods: { get: true, post: true, put: true, delete: true },
+      paths: { api: true, contentManager: true }
+    },
+    records: [],
+    suggestions: []
+  });
+  const [resourceCatalog, setResourceCatalog] = useState([]);
 
   useEffect(() => { boot(); }, []);
   useEffect(() => {
@@ -104,6 +116,10 @@ export default function HomePage() {
     setPage(1);
     setFilters(emptyFilters());
     setMessage({ text: '', variant: 'default' });
+
+    if (activeTab !== 'resources') {
+      setResourceSubTab('recorder');
+    }
   }, [activeTab]);
   useEffect(() => { setPage(1); }, [filters]);
 
@@ -115,7 +131,9 @@ export default function HomePage() {
       loadOverview(),
       loadAllEntities(),
       loadUsersAndRoles(),
-      loadStrapiTypes()
+      loadStrapiTypes(),
+      loadResourceRecorder(),
+      loadResourceCatalog()
     ]);
     setGlobalLoading(false);
   }
@@ -156,6 +174,120 @@ export default function HomePage() {
       const { data } = await get(endpoint('/strapi-content-types'));
       setStrapiTypes(data?.data || []);
     } catch {}
+  }
+
+  async function loadResourceRecorder() {
+    try {
+      const { data } = await get(endpoint('/resource-recorder'));
+      setResourceRecorder(data?.data || {
+        enabled: false,
+        filters: {
+          methods: { get: true, post: true, put: true, delete: true },
+          paths: { api: true, contentManager: true }
+        },
+        records: [],
+        suggestions: []
+      });
+    } catch {}
+  }
+
+  async function saveRecorderConfig(nextConfig = {}) {
+    setActionLoading(true);
+    try {
+      await put(endpoint('/resource-recorder'), {
+        enabled: nextConfig.enabled,
+        filters: nextConfig.filters
+      });
+      await loadResourceRecorder();
+      notify('Recorder settings updated.', 'success');
+    } catch {
+      notify('Failed to update recorder settings.', 'danger');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function setRecorderEnabled(enabled) {
+    await saveRecorderConfig({
+      enabled,
+      filters: resourceRecorder.filters
+    });
+  }
+
+  async function clearRecorder() {
+    setActionLoading(true);
+    try {
+      await del(endpoint('/resource-recorder'));
+      await loadResourceRecorder();
+      notify('Recorded requests cleared.', 'success');
+    } catch {
+      notify('Failed to clear recorded requests.', 'danger');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function toggleRecorderFilter(section, key) {
+    const nextFilters = {
+      methods: {
+        ...(resourceRecorder.filters?.methods || {})
+      },
+      paths: {
+        ...(resourceRecorder.filters?.paths || {})
+      }
+    };
+
+    nextFilters[section][key] = !Boolean(nextFilters[section][key]);
+
+    await saveRecorderConfig({
+      enabled: resourceRecorder.enabled,
+      filters: nextFilters
+    });
+  }
+
+  async function loadResourceCatalog() {
+    try {
+      const { data } = await get(endpoint('/resource-builder/catalog'));
+      setResourceCatalog(data?.data || []);
+    } catch {}
+  }
+
+  function buildResourceFromSuggestion(item) {
+    setActiveTab('resources');
+    setResourceSubTab('manual');
+    setEditingRecord(null);
+    setFormData({
+      ...getEmptyForm('resources'),
+      key: item.key,
+      displayName: item.displayName,
+      type: item.type || 'standard',
+      method: item.method || 'GET',
+      pathPattern: item.pathPattern || item.path || '',
+      requestRules: item.requestRules || {},
+      description: `Suggested from recorder (${item.count || 1} hit${(item.count || 1) > 1 ? 's' : ''})`
+    });
+    setPanelOpen(true);
+  }
+
+  function buildResourceFromCatalog(contentType, action) {
+    const sanitizedUid = String(contentType.uid || '').replace(/[^a-zA-Z0-9_.-]/g, '.');
+    const actionName = String(action.action || 'custom').toLowerCase();
+
+    setActiveTab('resources');
+    setResourceSubTab('manual');
+    setEditingRecord(null);
+    setFormData({
+      ...getEmptyForm('resources'),
+      key: `${sanitizedUid}.${actionName}`,
+      displayName: `${contentType.displayName} · ${action.method} ${action.path}`,
+      type: action.type || 'standard',
+      method: action.method || 'GET',
+      pathPattern: action.path || '',
+      contentTypeUid: contentType.uid || '',
+      controllerAction: `${contentType.uid}.${action.action || 'custom'}`,
+      description: `Generated from builder catalog (${action.type || 'standard'})`
+    });
+    setPanelOpen(true);
   }
 
   async function submitForm() {
@@ -758,12 +890,177 @@ export default function HomePage() {
           ) : (
             <Flex gap={0} alignItems="flex-start">
               <Box style={{ flex: 1, minWidth: 0, paddingRight: panelOpen ? 16 : 0 }}>
-                <Flex justifyContent="space-between" alignItems="center" paddingBottom={3}>
+                <Flex justifyContent="space-between" alignItems="center" paddingBottom={3} wrap="wrap" gap={2}>
                   <Typography variant="delta">{filteredRows.length} of {entityData[activeTab]?.length || 0} records</Typography>
-                  <Button onClick={() => { setEditingRecord(null); setFormData(getEmptyForm(activeTab)); setPanelOpen(true); }}>
-                    + New {activeTab.slice(0, -1)}
-                  </Button>
+                  <Flex gap={2} wrap="wrap">
+                    {activeTab === 'resources' && RESOURCE_SUB_TABS.map(tab => (
+                      <Button
+                        key={tab.key}
+                        variant={resourceSubTab === tab.key ? 'default' : 'tertiary'}
+                        onClick={() => setResourceSubTab(tab.key)}
+                      >
+                        {tab.label}
+                      </Button>
+                    ))}
+                    {(activeTab !== 'resources' || resourceSubTab === 'manual') && (
+                      <Button onClick={() => { setEditingRecord(null); setFormData(getEmptyForm(activeTab)); setPanelOpen(true); }}>
+                        + New {activeTab.slice(0, -1)}
+                      </Button>
+                    )}
+                  </Flex>
                 </Flex>
+
+                {activeTab === 'resources' && resourceSubTab === 'recorder' && (
+                  <Box padding={3} style={{ background: '#fffdf0', border: '1px solid #f2e3a0', borderRadius: 8, marginBottom: 10 }}>
+                    <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
+                      <Box>
+                        <Typography variant="beta">Resource Request Recorder</Typography>
+                        <Typography variant="pi" textColor="neutral600">
+                          Capture incoming API requests and convert suggestions to resources.
+                        </Typography>
+                      </Box>
+                      <Flex gap={2}>
+                        <Button
+                          variant={resourceRecorder.enabled ? 'danger-light' : 'secondary'}
+                          onClick={() => setRecorderEnabled(!resourceRecorder.enabled)}
+                          loading={actionLoading}
+                        >
+                          {resourceRecorder.enabled ? 'Stop Recording' : 'Start Recording'}
+                        </Button>
+                        <Button variant="tertiary" onClick={loadResourceRecorder}>
+                          Refresh Logs
+                        </Button>
+                        <Button variant="tertiary" onClick={clearRecorder}>
+                          Clear Logs
+                        </Button>
+                      </Flex>
+                    </Flex>
+
+                    <Box paddingTop={3}>
+                      <Typography variant="pi" textColor="neutral600">
+                        Status: {resourceRecorder.enabled ? 'Recording active' : 'Recording inactive'} · {resourceRecorder.records?.length || 0} captured route(s)
+                      </Typography>
+                    </Box>
+
+                    <Box paddingTop={3}>
+                      <Typography variant="omega">Recorder Filters</Typography>
+                      <Flex gap={4} wrap="wrap" paddingTop={2}>
+                        <Box>
+                          <Typography variant="pi" textColor="neutral600">Methods</Typography>
+                          <Flex gap={2} wrap="wrap" paddingTop={1}>
+                            {['get', 'post', 'put', 'delete'].map(method => (
+                              <label key={`method-${method}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(resourceRecorder.filters?.methods?.[method])}
+                                  onChange={() => toggleRecorderFilter('methods', method)}
+                                />
+                                {method.toUpperCase()}
+                              </label>
+                            ))}
+                          </Flex>
+                        </Box>
+
+                        <Box>
+                          <Typography variant="pi" textColor="neutral600">URL Prefixes</Typography>
+                          <Flex gap={2} wrap="wrap" paddingTop={1}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(resourceRecorder.filters?.paths?.api)}
+                                onChange={() => toggleRecorderFilter('paths', 'api')}
+                              />
+                              /api
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(resourceRecorder.filters?.paths?.contentManager)}
+                                onChange={() => toggleRecorderFilter('paths', 'contentManager')}
+                              />
+                              /content-manager
+                            </label>
+                          </Flex>
+                        </Box>
+                      </Flex>
+                    </Box>
+
+                    <Box paddingTop={3}>
+                      {(resourceRecorder.suggestions || []).length === 0 ? (
+                        <Typography variant="pi" textColor="neutral500">No recorded suggestions yet.</Typography>
+                      ) : (
+                        (resourceRecorder.suggestions || []).slice(0, 50).map(item => (
+                          <Box
+                            key={`${item.key}-${item.path}`}
+                            padding={3}
+                            style={{ border: '1px solid #ececec', borderRadius: 8, background: 'white', marginBottom: 8 }}
+                          >
+                            <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
+                              <Box>
+                                <Typography variant="sigma">{item.method} {item.path}</Typography>
+                                <Typography variant="pi" textColor="neutral600">
+                                  Hits: {item.count} · Last status: {item.lastStatus ?? '-'} · Suggested type: {item.type}
+                                </Typography>
+                              </Box>
+                              <Button size="S" onClick={() => buildResourceFromSuggestion(item)}>Create Resource</Button>
+                            </Flex>
+                          </Box>
+                        ))
+                      )}
+                    </Box>
+                  </Box>
+                )}
+
+                {activeTab === 'resources' && resourceSubTab === 'builder' && (
+                  <Box padding={3} style={{ background: '#f4f8ff', border: '1px solid #d8e6ff', borderRadius: 8, marginBottom: 10 }}>
+                    <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
+                      <Box>
+                        <Typography variant="beta">Permission-Style Resource Builder</Typography>
+                        <Typography variant="pi" textColor="neutral600">
+                          Browse content types and standard/extended actions, then create resource entries from selected actions.
+                        </Typography>
+                      </Box>
+                      <Button variant="tertiary" onClick={loadResourceCatalog}>Refresh Catalog</Button>
+                    </Flex>
+
+                    <Box paddingTop={3}>
+                      {resourceCatalog.length === 0 ? (
+                        <Typography variant="pi" textColor="neutral500">No content type actions discovered.</Typography>
+                      ) : (
+                        resourceCatalog.map(ct => (
+                          <Box key={ct.uid} padding={3} style={{ border: '1px solid #e2e8f5', borderRadius: 8, background: 'white', marginBottom: 10 }}>
+                            <Typography variant="sigma">{ct.displayName}</Typography>
+                            <Typography variant="pi" textColor="neutral500">{ct.uid}</Typography>
+
+                            <Box paddingTop={2}>
+                              <Typography variant="omega">Standard actions</Typography>
+                              {ct.standard.map((action, idx) => (
+                                <Flex key={`${ct.uid}-std-${idx}`} justifyContent="space-between" alignItems="center" paddingTop={1} wrap="wrap" gap={2}>
+                                  <Typography variant="pi">{action.method} {action.path}</Typography>
+                                  <Button size="S" variant="tertiary" onClick={() => buildResourceFromCatalog(ct, action)}>Use</Button>
+                                </Flex>
+                              ))}
+                            </Box>
+
+                            <Box paddingTop={2}>
+                              <Typography variant="omega">Extended actions</Typography>
+                              {ct.extended.length === 0 ? (
+                                <Typography variant="pi" textColor="neutral500">No extended routes discovered.</Typography>
+                              ) : (
+                                ct.extended.map((action, idx) => (
+                                  <Flex key={`${ct.uid}-ext-${idx}`} justifyContent="space-between" alignItems="center" paddingTop={1} wrap="wrap" gap={2}>
+                                    <Typography variant="pi">{action.method} {action.path}</Typography>
+                                    <Button size="S" variant="tertiary" onClick={() => buildResourceFromCatalog(ct, action)}>Use</Button>
+                                  </Flex>
+                                ))
+                              )}
+                            </Box>
+                          </Box>
+                        ))
+                      )}
+                    </Box>
+                  </Box>
+                )}
 
                 {/* Filters */}
                 <Box padding={3} style={{ background: '#f8f9fc', border: '1px solid #e8eaf0', borderRadius: 8, marginBottom: 10 }}>
@@ -1009,7 +1306,7 @@ export default function HomePage() {
               </Box>
 
               {/* Edit/Create Panel */}
-              {panelOpen && (
+              {panelOpen && (activeTab !== 'resources' || resourceSubTab === 'manual') && (
                 <Box style={{ width: 450, marginLeft: 16, background: 'white', borderRadius: 8, border: '1px solid #e8e8e8', padding: 16 }}>
                   <Typography variant="beta" paddingBottom={4}>
                     {editingRecord ? `Edit ${activeTab.slice(0, -1)}` : `Create New ${activeTab.slice(0, -1)}`}
@@ -1032,90 +1329,3 @@ export default function HomePage() {
     </Main>
   );
 }
-2. Missing server/src/services/interceptor/index.js (the interceptor service entry)
-The file server/src/services/interceptor/index.js should export the interceptor service properly. Based on your structure, it's already there but ensure it's complete:
-
-javascript
-'use strict';
-
-import requestService from './request';
-import responseService from './response';
-
-export default ({ strapi }) => ({
-  async intercept(ctx, next) {
-    const method = ctx.method;
-    const originalPath = ctx.path || ctx.url || '';
-    const path = originalPath.split('?')[0];
-    
-    const resources = await strapi.db.query('plugin::api-guard-pro.resource').findMany({
-      where: { isActive: true },
-      populate: { domain: true }
-    });
-    
-    let matchedResource = null;
-    
-    for (const resource of resources) {
-      if (String(resource.method).toUpperCase() !== String(method).toUpperCase()) continue;
-      
-      if (resource.pathPattern) {
-        const regex = this.pathToRegex(resource.pathPattern);
-        if (regex.test(path)) {
-          matchedResource = resource;
-          break;
-        }
-      }
-      
-      if (!matchedResource && resource.aliasPath) {
-        const regex = this.pathToRegex(resource.aliasPath);
-        if (regex.test(path)) {
-          matchedResource = resource;
-          break;
-        }
-      }
-    }
-    
-    if (!matchedResource) {
-      const config = strapi.config.get('plugin::api-guard-pro');
-      if (config.denyByDefault) {
-        return ctx.forbidden('No matching permission resource');
-      }
-      return next();
-    }
-    
-    const contextResolver = strapi.service('plugin::api-guard-pro.context-resolver');
-    const context = await contextResolver.resolve(ctx);
-    
-    const permissionEngine = strapi.service('plugin::api-guard-pro.permission-engine');
-    const allowed = await permissionEngine.can({
-      user: context.user,
-      action: method,
-      resourceUid: matchedResource.contentTypeUid,
-      context
-    });
-    
-    if (!allowed) {
-      if (!context.user) return ctx.unauthorized('Authentication required');
-      return ctx.forbidden('Access denied');
-    }
-    
-    if (!matchedResource.isPublic && context.domain) {
-      const userRoleType = context.user?.role?.type || context.user?.role?.name || 'public';
-      if (context.domain.strapiRoleType && context.domain.strapiRoleType !== userRoleType) {
-        return ctx.forbidden('User role cannot access this domain');
-      }
-    }
-    
-    await requestService.process(ctx, matchedResource, context);
-    
-    await next();
-    
-    ctx.body = await responseService.process(ctx.body, matchedResource);
-  },
-  
-  pathToRegex(pattern = '') {
-    const escaped = String(pattern)
-      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\\:[^/]+/g, '([^/]+)');
-    return new RegExp(`^${escaped}$`);
-  }
-});

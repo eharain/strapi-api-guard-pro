@@ -1,18 +1,19 @@
 'use strict';
 
-export default {
+module.exports = {
   default: {
     headerDomainKey: 'x-app-name',
     domainQueryKey: '_domain',
     headerElevatedKey: 'x-app-admin',
     denyByDefault: true,
     interceptorEnabled: true,
-    bypassPaths: ['/admin', '/_health', '/documentation', '/uploads'],
+    bypassPaths: ['/admin', '/_health', '/documentation', '/uploads', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'],
     cacheTTL: 30000,
     enableAdminUI: true,
     enableLogging: true,
     logLevel: 'info',
     publicRoleType: 'public',
+    respectUsersPermissions: true,
   },
   validator: (config) => {
     if (typeof config.headerDomainKey !== 'string' || config.headerDomainKey.length < 2) {
@@ -23,6 +24,9 @@ export default {
     }
     if (config.cacheTTL && (typeof config.cacheTTL !== 'number' || config.cacheTTL < 0)) {
       throw new Error('cacheTTL must be a non-negative number');
+    }
+    if (typeof config.respectUsersPermissions !== 'boolean') {
+      throw new Error('respectUsersPermissions must be a boolean');
     }
     return config;
   }

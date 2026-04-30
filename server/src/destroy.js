@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => {
+module.exports = ({ strapi }) => {
   // Clear all caches on server shutdown
   const permissionEngine = strapi.service('plugin::api-guard-pro.permission-engine');
   if (permissionEngine) {

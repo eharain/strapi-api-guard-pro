@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async process(ctx, resource, context) {
     const rules = resource.requestRules || {};
     

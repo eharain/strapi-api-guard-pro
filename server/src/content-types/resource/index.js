@@ -1,8 +1,8 @@
 'use strict';
 
-import schema from './schema.json';
+const schema = require('./schema.json');
 
-export default {
+module.exports = {
   schema,
   lifecycles: {
     async beforeDelete(event) {

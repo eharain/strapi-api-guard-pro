@@ -1,6 +1,6 @@
 'use strict';
 
-export default async ({ strapi }) => {
+module.exports = async ({ strapi }) => {
   try {
     // Register global middleware
     strapi.server.use(async (ctx, next) => {
@@ -12,9 +12,11 @@ export default async ({ strapi }) => {
       }
       
       // Skip bypass paths
-      const bypassPaths = config?.bypassPaths || ['/admin', '/_health', '/documentation'];
+      const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/uploads', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'];
+      const configuredBypassPaths = Array.isArray(config?.bypassPaths) ? config.bypassPaths : [];
+      const bypassPaths = [...new Set([...defaultBypassPaths, ...configuredBypassPaths])];
       const currentPath = ctx.path || ctx.url || '';
-      
+
       if (bypassPaths.some(path => currentPath.startsWith(path))) {
         return next();
       }

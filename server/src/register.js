@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => {
+module.exports = ({ strapi }) => {
   // Register plugin API
   strapi.apiGuard = {
     can: async (params) => {

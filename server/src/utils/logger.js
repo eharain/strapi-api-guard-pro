@@ -44,7 +44,7 @@ export const error = (message, ...args) => {
   }
 };
 
-export default {
+module.exports = {
   setLogLevel,
   debug,
   info,

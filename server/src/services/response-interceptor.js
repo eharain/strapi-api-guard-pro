@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   filterFields(data, allowedFields) {
     if (!data || typeof data !== 'object') return data;
     

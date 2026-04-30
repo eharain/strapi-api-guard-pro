@@ -1,6 +1,6 @@
 'use strict';
 
-export default (config, { strapi }) => {
+module.exports = (config, { strapi }) => {
   return async (ctx, next) => {
     const contextResolver = strapi.service('plugin::api-guard-pro.context-resolver');
     const context = await contextResolver.resolve(ctx);

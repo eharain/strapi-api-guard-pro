@@ -1,12 +1,12 @@
-import domains from './domains';
-import resources from './resources';
-import roles from './roles';
-import policies from './policies';
-import grants from './grants';
-import groups from './groups';
-import users from './users';
+const domains = require('./domains');
+const resources = require('./resources');
+const roles = require('./roles');
+const policies = require('./policies');
+const grants = require('./grants');
+const groups = require('./groups');
+const users = require('./users');
 
-export default {
+module.exports = {
   domains,
   resources,
   roles,

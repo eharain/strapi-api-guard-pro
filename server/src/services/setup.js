@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async ensureDefaults() {
     // Check if any domains exist
     const domainCount = await strapi.db.query('plugin::api-guard-pro.domain').count();

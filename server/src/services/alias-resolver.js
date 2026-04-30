@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async resolveAlias(aliasPath, method) {
     const resource = await strapi.db.query('plugin::api-guard-pro.resource').findOne({
       where: {

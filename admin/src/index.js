@@ -1,4 +1,3 @@
-import { prefixPluginTranslations } from '@strapi/helper-plugin';
 import pluginPkg from '../../package.json';
 import PluginIcon from './components/PluginIcon';
 import { getTrad } from './utils';
@@ -15,7 +14,7 @@ export default {
         defaultMessage: 'API Guard Pro'
       },
       Component: async () => {
-        const { default: App } = await import('./App');
+        const { default: App } = await import('./App.jsx');
         return App;
       }
     });
@@ -31,7 +30,7 @@ export default {
       locales.map(locale => {
         return import(`./translations/${locale}.json`)
           .then(({ default: data }) => ({
-            data: prefixPluginTranslations(data, getTrad),
+            data,
             locale
           }))
           .catch(() => ({ data: {}, locale }));

@@ -1,6 +1,6 @@
 'use strict';
 
-export default [
+module.exports = [
   {
     method: 'GET',
     path: '/overview',
@@ -47,6 +47,30 @@ export default [
     method: 'GET',
     path: '/strapi-content-types',
     handler: 'admin.strapiContentTypes',
+    config: { auth: false }
+  },
+  {
+    method: 'GET',
+    path: '/resource-recorder',
+    handler: 'admin.resourceRecorder',
+    config: { auth: false }
+  },
+  {
+    method: 'PUT',
+    path: '/resource-recorder',
+    handler: 'admin.setResourceRecorder',
+    config: { auth: false }
+  },
+  {
+    method: 'DELETE',
+    path: '/resource-recorder',
+    handler: 'admin.clearResourceRecorder',
+    config: { auth: false }
+  },
+  {
+    method: 'GET',
+    path: '/resource-builder/catalog',
+    handler: 'admin.resourceBuilderCatalog',
     config: { auth: false }
   },
   {

@@ -1,10 +1,9 @@
 'use strict';
 
-import guard from './guard';
-import domainResolver from './domain-resolver';
+const guard = require('./guard');
+const domainResolver = require('./domain-resolver');
 
-export default {
+module.exports = {
   guard,
   domainResolver
 };
-Scripts Files

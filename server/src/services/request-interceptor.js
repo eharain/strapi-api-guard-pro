@@ -19,7 +19,7 @@ const resolveToken = (value, context) => {
   return result;
 };
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async intercept(ctx, next) {
     const method = ctx.method;
     const originalPath = ctx.path || ctx.url || '';

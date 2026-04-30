@@ -1,6 +1,6 @@
 'use strict';
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   buildFromConditions(conditions = [], context = {}) {
     if (!Array.isArray(conditions) || conditions.length === 0) return {};
     

@@ -8,7 +8,7 @@ const normalizeHeader = (value) => {
   return String(value).trim();
 };
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async resolve(ctx = {}) {
     const config = strapi.config.get('plugin::api-guard-pro');
     const headerDomainKey = config.headerDomainKey || 'x-app-name';

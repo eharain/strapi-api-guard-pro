@@ -1,13 +1,13 @@
 'use strict';
 
-import domain from './domain';
-import resource from './resource';
-import role from './role';
-import policy from './policy';
-import grant from './grant';
-import group from './group';
+const domain = require('./domain');
+const resource = require('./resource');
+const role = require('./role');
+const policy = require('./policy');
+const grant = require('./grant');
+const group = require('./group');
 
-export default {
+module.exports = {
   domain,
   resource,
   role,

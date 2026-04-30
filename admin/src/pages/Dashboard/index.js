@@ -1,3 +1,3 @@
-import Dashboard from './Dashboard';
+import Dashboard from './Dashboard.jsx';
 
 export default Dashboard;

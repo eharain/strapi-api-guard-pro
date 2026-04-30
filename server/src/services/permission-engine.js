@@ -19,7 +19,7 @@ const actionMatches = (requestedAction, policyActions = []) => {
 const cache = new Map();
 let cacheTTL = 30000;
 
-export default ({ strapi }) => ({
+module.exports = ({ strapi }) => ({
   async can({ user, action, resourceUid, entity = null, context = {} }) {
     const config = strapi.config.get('plugin::api-guard-pro');
     const denyByDefault = config.denyByDefault !== false;
