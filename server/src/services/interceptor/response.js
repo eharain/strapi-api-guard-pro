@@ -56,4 +56,4 @@ export default ({ strapi }) => ({
     return stripped;
   }
 });
-Admin Panel Additional Files
+

@@ -10,7 +10,14 @@ import {
   SingleSelectOption,
   Divider,
   Loader,
-  Alert
+  Alert,
+  ModalLayout,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Textarea,
+  Switch,
+  JSONInput
 } from '@strapi/design-system';
 import { useFetchClient } from '@strapi/strapi/admin';
 
@@ -29,6 +36,7 @@ const LEVEL_OPTIONS = ['staff', 'manager', 'admin', 'super-admin'];
 const EFFECT_OPTIONS = ['allow', 'deny'];
 const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const RESOURCE_TYPES = ['standard', 'extended', 'alias'];
+const MATCH_MODE_OPTIONS = ['header', 'query', 'both'];
 
 const endpoint = (path) => `/api-guard-pro${path}`;
 const labelFor = (rec) => {
@@ -47,6 +55,25 @@ const emptyFilters = () => ({
   type: ''
 });
 
+const getEmptyForm = (tab) => {
+  switch (tab) {
+    case 'domains':
+      return { key: '', name: '', description: '', isActive: true, matchMode: 'header', matchKey: 'x-app-name', strapiRoleType: 'authenticated' };
+    case 'resources':
+      return { key: '', displayName: '', description: '', type: 'standard', method: 'GET', pathPattern: '', aliasPath: '', contentTypeUid: '', isActive: true, effect: 'allow', requestRules: {}, responseRules: {} };
+    case 'roles':
+      return { key: '', name: '', level: 'staff', description: '', isActive: true, domain: null };
+    case 'policies':
+      return { key: '', name: '', description: '', actions: ['read'], effect: 'allow', conditions: [], fields: [], priority: 0, isActive: true, resource: null };
+    case 'grants':
+      return { key: '', isActive: true, role: null, policy: null };
+    case 'groups':
+      return { key: '', name: '', description: '', isActive: true, isBundle: false, domain: null, parentGroup: null };
+    default:
+      return {};
+  }
+};
+
 export default function HomePage() {
   const { get, post, put, del } = useFetchClient();
   const [activeTab, setActiveTab] = useState('domains');
@@ -59,6 +86,7 @@ export default function HomePage() {
   const [strapiTypes, setStrapiTypes] = useState([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [formData, setFormData] = useState({});
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(emptyFilters());
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -72,6 +100,7 @@ export default function HomePage() {
   useEffect(() => {
     setPanelOpen(false);
     setEditingRecord(null);
+    setFormData(getEmptyForm(activeTab));
     setPage(1);
     setFilters(emptyFilters());
     setMessage({ text: '', variant: 'default' });
@@ -129,22 +158,31 @@ export default function HomePage() {
     } catch {}
   }
 
-  async function submitForm(form) {
+  async function submitForm() {
     setActionLoading(true);
     notify('');
     try {
+      const payload = { ...formData };
+      // Convert relation IDs to numbers
+      if (payload.domain) payload.domain = parseInt(payload.domain, 10);
+      if (payload.resource) payload.resource = parseInt(payload.resource, 10);
+      if (payload.role) payload.role = parseInt(payload.role, 10);
+      if (payload.policy) payload.policy = parseInt(payload.policy, 10);
+      if (payload.parentGroup) payload.parentGroup = parseInt(payload.parentGroup, 10);
+      
       if (editingRecord) {
-        await put(endpoint(`/entities/${activeTab}/${editingRecord.id}`), { data: form });
+        await put(endpoint(`/entities/${activeTab}/${editingRecord.id}`), { data: payload });
         notify('Updated successfully.', 'success');
       } else {
-        await post(endpoint(`/entities/${activeTab}`), { data: form });
+        await post(endpoint(`/entities/${activeTab}`), { data: payload });
         notify('Created successfully.', 'success');
       }
       setPanelOpen(false);
       setEditingRecord(null);
       await loadEntity(activeTab);
       await loadOverview();
-    } catch {
+    } catch (err) {
+      console.error(err);
       notify(editingRecord ? 'Failed to update.' : 'Failed to create.', 'danger');
     } finally {
       setActionLoading(false);
@@ -169,6 +207,19 @@ export default function HomePage() {
     } finally {
       setActionLoading(false);
     }
+  }
+
+  function openEditForm(record) {
+    setEditingRecord(record);
+    const form = { ...record };
+    // Convert relation objects to IDs for selects
+    if (form.domain && typeof form.domain === 'object') form.domain = form.domain.id;
+    if (form.resource && typeof form.resource === 'object') form.resource = form.resource.id;
+    if (form.role && typeof form.role === 'object') form.role = form.role.id;
+    if (form.policy && typeof form.policy === 'object') form.policy = form.policy.id;
+    if (form.parentGroup && typeof form.parentGroup === 'object') form.parentGroup = form.parentGroup.id;
+    setFormData(form);
+    setPanelOpen(true);
   }
 
   async function saveAssignment() {
@@ -211,6 +262,323 @@ export default function HomePage() {
   const safePage = Math.min(page, totalPages);
   const pagedRows = filteredRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const { domains, resources, roles, policies, groups } = entityData;
+
+  const renderForm = () => {
+    const commonFields = (
+      <>
+        <Box paddingBottom={4}>
+          <TextInput
+            label="Key"
+            name="key"
+            value={formData.key || ''}
+            onChange={e => setFormData({ ...formData, key: e.target.value })}
+            required
+            hint="Unique identifier (e.g., pos.products)"
+          />
+        </Box>
+        <Box paddingBottom={4}>
+          <TextInput
+            label="Name"
+            name="name"
+            value={formData.name || formData.displayName || ''}
+            onChange={e => setFormData({ ...formData, name: e.target.value, displayName: e.target.value })}
+            required
+          />
+        </Box>
+        <Box paddingBottom={4}>
+          <Textarea
+            label="Description"
+            name="description"
+            value={formData.description || ''}
+            onChange={e => setFormData({ ...formData, description: e.target.value })}
+          />
+        </Box>
+        <Box paddingBottom={4}>
+          <Switch
+            label="Active"
+            selected={formData.isActive !== false}
+            onChange={() => setFormData({ ...formData, isActive: !formData.isActive })}
+          />
+        </Box>
+      </>
+    );
+
+    switch (activeTab) {
+      case 'domains':
+        return (
+          <>
+            {commonFields}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Match Mode"
+                value={formData.matchMode || 'header'}
+                onChange={v => setFormData({ ...formData, matchMode: v })}
+              >
+                {MATCH_MODE_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Match Key"
+                value={formData.matchKey || 'x-app-name'}
+                onChange={e => setFormData({ ...formData, matchKey: e.target.value })}
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Strapi Role Type"
+                value={formData.strapiRoleType || 'authenticated'}
+                onChange={v => setFormData({ ...formData, strapiRoleType: v })}
+              >
+                <SingleSelectOption value="authenticated">Authenticated</SingleSelectOption>
+                <SingleSelectOption value="public">Public</SingleSelectOption>
+              </SingleSelect>
+            </Box>
+          </>
+        );
+
+      case 'resources':
+        return (
+          <>
+            {commonFields}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Type"
+                value={formData.type || 'standard'}
+                onChange={v => setFormData({ ...formData, type: v })}
+              >
+                {RESOURCE_TYPES.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Method"
+                value={formData.method || 'GET'}
+                onChange={v => setFormData({ ...formData, method: v })}
+              >
+                {METHOD_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Path Pattern"
+                value={formData.pathPattern || ''}
+                onChange={e => setFormData({ ...formData, pathPattern: e.target.value })}
+                required
+                hint="e.g., /api/products/:id"
+              />
+            </Box>
+            {formData.type === 'alias' && (
+              <Box paddingBottom={4}>
+                <TextInput
+                  label="Alias Path"
+                  value={formData.aliasPath || ''}
+                  onChange={e => setFormData({ ...formData, aliasPath: e.target.value })}
+                  hint="Clean URL for this resource"
+                />
+              </Box>
+            )}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Content Type"
+                value={formData.contentTypeUid || ''}
+                onChange={v => setFormData({ ...formData, contentTypeUid: v })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {strapiTypes.map(type => (
+                  <SingleSelectOption key={type.uid} value={type.uid}>{type.displayName}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Domain"
+                value={formData.domain ? String(formData.domain) : ''}
+                onChange={v => setFormData({ ...formData, domain: v || null })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {domains.map(d => (
+                  <SingleSelectOption key={d.id} value={String(d.id)}>{labelFor(d)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Effect"
+                value={formData.effect || 'allow'}
+                onChange={v => setFormData({ ...formData, effect: v })}
+              >
+                {EFFECT_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+          </>
+        );
+
+      case 'roles':
+        return (
+          <>
+            {commonFields}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Level"
+                value={formData.level || 'staff'}
+                onChange={v => setFormData({ ...formData, level: v })}
+              >
+                {LEVEL_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Domain"
+                value={formData.domain ? String(formData.domain) : ''}
+                onChange={v => setFormData({ ...formData, domain: v || null })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {domains.map(d => (
+                  <SingleSelectOption key={d.id} value={String(d.id)}>{labelFor(d)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+          </>
+        );
+
+      case 'policies':
+        return (
+          <>
+            {commonFields}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Effect"
+                value={formData.effect || 'allow'}
+                onChange={v => setFormData({ ...formData, effect: v })}
+              >
+                {EFFECT_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Resource"
+                value={formData.resource ? String(formData.resource) : ''}
+                onChange={v => setFormData({ ...formData, resource: v || null })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {resources.map(r => (
+                  <SingleSelectOption key={r.id} value={String(r.id)}>{labelFor(r)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Actions (comma-separated)"
+                value={Array.isArray(formData.actions) ? formData.actions.join(', ') : 'read'}
+                onChange={e => setFormData({ ...formData, actions: e.target.value.split(',').map(s => s.trim()) })}
+                hint="e.g., read, write, delete"
+              />
+            </Box>
+          </>
+        );
+
+      case 'grants':
+        return (
+          <>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Key"
+                value={formData.key || ''}
+                onChange={e => setFormData({ ...formData, key: e.target.value })}
+                required
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Role"
+                value={formData.role ? String(formData.role) : ''}
+                onChange={v => setFormData({ ...formData, role: v || null })}
+                required
+              >
+                <SingleSelectOption value="">Select a role</SingleSelectOption>
+                {roles.map(r => (
+                  <SingleSelectOption key={r.id} value={String(r.id)}>{labelFor(r)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Policy"
+                value={formData.policy ? String(formData.policy) : ''}
+                onChange={v => setFormData({ ...formData, policy: v || null })}
+                required
+              >
+                <SingleSelectOption value="">Select a policy</SingleSelectOption>
+                {policies.map(p => (
+                  <SingleSelectOption key={p.id} value={String(p.id)}>{labelFor(p)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <Switch
+                label="Active"
+                selected={formData.isActive !== false}
+                onChange={() => setFormData({ ...formData, isActive: !formData.isActive })}
+              />
+            </Box>
+          </>
+        );
+
+      case 'groups':
+        return (
+          <>
+            {commonFields}
+            <Box paddingBottom={4}>
+              <Switch
+                label="Is Bundle"
+                selected={formData.isBundle === true}
+                onChange={() => setFormData({ ...formData, isBundle: !formData.isBundle })}
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Domain"
+                value={formData.domain ? String(formData.domain) : ''}
+                onChange={v => setFormData({ ...formData, domain: v || null })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {domains.map(d => (
+                  <SingleSelectOption key={d.id} value={String(d.id)}>{labelFor(d)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Parent Group"
+                value={formData.parentGroup ? String(formData.parentGroup) : ''}
+                onChange={v => setFormData({ ...formData, parentGroup: v || null })}
+              >
+                <SingleSelectOption value="">None</SingleSelectOption>
+                {groups.filter(g => g.id !== editingRecord?.id).map(g => (
+                  <SingleSelectOption key={g.id} value={String(g.id)}>{labelFor(g)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   if (globalLoading) {
     return (
@@ -392,7 +760,9 @@ export default function HomePage() {
               <Box style={{ flex: 1, minWidth: 0, paddingRight: panelOpen ? 16 : 0 }}>
                 <Flex justifyContent="space-between" alignItems="center" paddingBottom={3}>
                   <Typography variant="delta">{filteredRows.length} of {entityData[activeTab]?.length || 0} records</Typography>
-                  <Button onClick={() => { setEditingRecord(null); setPanelOpen(true); }}>+ New {activeTab.slice(0, -1)}</Button>
+                  <Button onClick={() => { setEditingRecord(null); setFormData(getEmptyForm(activeTab)); setPanelOpen(true); }}>
+                    + New {activeTab.slice(0, -1)}
+                  </Button>
                 </Flex>
 
                 {/* Filters */}
@@ -536,8 +906,10 @@ export default function HomePage() {
                         background: 'white',
                         border: '1px solid #e8e8e8',
                         borderRadius: 8,
-                        marginBottom: 6
+                        marginBottom: 6,
+                        cursor: 'pointer'
                       }}
+                      onClick={() => openEditForm(row)}
                     >
                       <Flex justifyContent="space-between" alignItems="center" gap={2}>
                         <Flex gap={2} alignItems="center" wrap="wrap">
@@ -597,4 +969,153 @@ export default function HomePage() {
                             </span>
                           )}
                           {row.domain && !row.level && (
-                            <Typography variant="pi" textColor="neutral500">({labelFor(row.domain)})
+                            <Typography variant="pi" textColor="neutral500">({labelFor(row.domain)})</Typography>
+                          )}
+                          {row.resource && (
+                            <Typography variant="pi" textColor="neutral500">â†’ {labelFor(row.resource)}</Typography>
+                          )}
+                        </Flex>
+                        <Button
+                          variant="danger-light"
+                          onClick={(e) => { e.stopPropagation(); deleteRecord(activeTab, row.id); }}
+                        >
+                          Delete
+                        </Button>
+                      </Flex>
+                    </Box>
+                  ))
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <Flex justifyContent="center" gap={2} paddingTop={4}>
+                    <Button variant="tertiary" onClick={() => setPage(1)} disabled={page === 1}>
+                      First
+                    </Button>
+                    <Button variant="tertiary" onClick={() => setPage(page - 1)} disabled={page === 1}>
+                      Previous
+                    </Button>
+                    <Typography variant="pi" textColor="neutral600">
+                      Page {safePage} of {totalPages}
+                    </Typography>
+                    <Button variant="tertiary" onClick={() => setPage(page + 1)} disabled={page === totalPages}>
+                      Next
+                    </Button>
+                    <Button variant="tertiary" onClick={() => setPage(totalPages)} disabled={page === totalPages}>
+                      Last
+                    </Button>
+                  </Flex>
+                )}
+              </Box>
+
+              {/* Edit/Create Panel */}
+              {panelOpen && (
+                <Box style={{ width: 450, marginLeft: 16, background: 'white', borderRadius: 8, border: '1px solid #e8e8e8', padding: 16 }}>
+                  <Typography variant="beta" paddingBottom={4}>
+                    {editingRecord ? `Edit ${activeTab.slice(0, -1)}` : `Create New ${activeTab.slice(0, -1)}`}
+                  </Typography>
+                  {renderForm()}
+                  <Flex gap={2} justifyContent="flex-end" paddingTop={4}>
+                    <Button variant="tertiary" onClick={() => { setPanelOpen(false); setEditingRecord(null); }} disabled={actionLoading}>
+                      Cancel
+                    </Button>
+                    <Button onClick={submitForm} loading={actionLoading}>
+                      {editingRecord ? 'Update' : 'Create'}
+                    </Button>
+                  </Flex>
+                </Box>
+              )}
+            </Flex>
+          )}
+        </Box>
+      </Box>
+    </Main>
+  );
+}
+2. Missing server/src/services/interceptor/index.js (the interceptor service entry)
+The file server/src/services/interceptor/index.js should export the interceptor service properly. Based on your structure, it's already there but ensure it's complete:
+
+javascript
+'use strict';
+
+import requestService from './request';
+import responseService from './response';
+
+export default ({ strapi }) => ({
+  async intercept(ctx, next) {
+    const method = ctx.method;
+    const originalPath = ctx.path || ctx.url || '';
+    const path = originalPath.split('?')[0];
+    
+    const resources = await strapi.db.query('plugin::api-guard-pro.resource').findMany({
+      where: { isActive: true },
+      populate: { domain: true }
+    });
+    
+    let matchedResource = null;
+    
+    for (const resource of resources) {
+      if (String(resource.method).toUpperCase() !== String(method).toUpperCase()) continue;
+      
+      if (resource.pathPattern) {
+        const regex = this.pathToRegex(resource.pathPattern);
+        if (regex.test(path)) {
+          matchedResource = resource;
+          break;
+        }
+      }
+      
+      if (!matchedResource && resource.aliasPath) {
+        const regex = this.pathToRegex(resource.aliasPath);
+        if (regex.test(path)) {
+          matchedResource = resource;
+          break;
+        }
+      }
+    }
+    
+    if (!matchedResource) {
+      const config = strapi.config.get('plugin::api-guard-pro');
+      if (config.denyByDefault) {
+        return ctx.forbidden('No matching permission resource');
+      }
+      return next();
+    }
+    
+    const contextResolver = strapi.service('plugin::api-guard-pro.context-resolver');
+    const context = await contextResolver.resolve(ctx);
+    
+    const permissionEngine = strapi.service('plugin::api-guard-pro.permission-engine');
+    const allowed = await permissionEngine.can({
+      user: context.user,
+      action: method,
+      resourceUid: matchedResource.contentTypeUid,
+      context
+    });
+    
+    if (!allowed) {
+      if (!context.user) return ctx.unauthorized('Authentication required');
+      return ctx.forbidden('Access denied');
+    }
+    
+    if (!matchedResource.isPublic && context.domain) {
+      const userRoleType = context.user?.role?.type || context.user?.role?.name || 'public';
+      if (context.domain.strapiRoleType && context.domain.strapiRoleType !== userRoleType) {
+        return ctx.forbidden('User role cannot access this domain');
+      }
+    }
+    
+    await requestService.process(ctx, matchedResource, context);
+    
+    await next();
+    
+    ctx.body = await responseService.process(ctx.body, matchedResource);
+  },
+  
+  pathToRegex(pattern = '') {
+    const escaped = String(pattern)
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\\:[^/]+/g, '([^/]+)');
+    return new RegExp(`^${escaped}$`);
+  }
+});

@@ -6,12 +6,12 @@
  */
 
 const seedDatabase = async () => {
-  console.log('ðŸŒ± Seeding API Guard Pro database...');
+  console.log('🌱 Seeding API Guard Pro database...');    
   
   // This would be implemented to seed default data
   // Domains, resources, roles, policies, grants, groups
   
-  console.log('âœ… Seeding complete!');
+  console.log('✔ Seeding complete!');
 };
 
 seedDatabase().catch(console.error);
