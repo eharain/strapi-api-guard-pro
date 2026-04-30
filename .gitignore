@@ -28,3 +28,4 @@ Thumbs.db
 .strapi/
 .cache/
 /.vs
+/scripts/patches/*

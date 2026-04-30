@@ -1,3 +1,1 @@
-const pluginId = 'api-guard-pro';
-
-export const getTrad = (id) => `${pluginId}.${id}`;
+export const getTrad = (id) => `api-guard-pro.${id}`;

@@ -1,3 +1,5 @@
+'use strict';
+
 import domain from './domain';
 import resource from './resource';
 import role from './role';

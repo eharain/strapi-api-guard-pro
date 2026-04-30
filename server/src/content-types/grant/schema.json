@@ -32,14 +32,12 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.role",
-      "inversedBy": "grants",
       "required": true
     },
     "policy": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.policy",
-      "inversedBy": "grants",
       "required": true
     }
   }

@@ -8,33 +8,6 @@
     "email": "eharain@yahoo.com"
   },
   "main": "strapi-server.js",
-  "types": "dist/index.d.ts",
-  "strapi": {
-    "name": "api-guard-pro",
-    "displayName": "API Guard Pro",
-    "description": "Intercept, filter, and secure your APIs with domain isolation, field-level security, and URL aliases",
-    "kind": "plugin",
-    "required": false
-  },
-  "exports": {
-    "./strapi-admin": {
-      "source": "./admin/src/index.js",
-      "import": "./dist/admin/index.js",
-      "require": "./dist/admin/index.js",
-      "default": "./dist/admin/index.js"
-    },
-    "./strapi-server": {
-      "source": "./server/src/index.js",
-      "import": "./dist/server/index.js",
-      "require": "./dist/server/index.js",
-      "default": "./dist/server/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "strapi-server.js",
-    "strapi-admin.js"
-  ],
   "scripts": {
     "build": "strapi-plugin build",
     "watch": "strapi-plugin watch",
@@ -42,20 +15,28 @@
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
-    "@strapi/design-system": "^2.0.0",
-    "@strapi/helper-plugin": "^5.0.0",
-    "@strapi/icons": "^2.0.0",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "react-router-dom": "^6.0.0"
+    "@strapi/design-system": "^1.6.0",
+    "@strapi/helper-plugin": "^4.6.0",
+    "@strapi/icons": "^1.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^5.3.4"
   },
   "peerDependencies": {
     "@strapi/strapi": "^5.0.0"
   },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+  "strapi": {
+    "name": "api-guard-pro",
+    "displayName": "API Guard Pro",
+    "description": "Intercept, filter, and secure your APIs with domain isolation, field-level security, and URL aliases",
+    "kind": "plugin",
+    "required": false
   },
+  "files": [
+    "dist",
+    "strapi-server.js",
+    "strapi-admin.js"
+  ],
   "keywords": [
     "strapi",
     "strapi-5",
@@ -64,10 +45,7 @@
     "permissions",
     "rbac",
     "api-gateway",
-    "authorization"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/eharain/strapi-api-guard-pro"
-  }
+    "authorization",
+    "multi-tenant"
+  ]
 }

@@ -42,25 +42,12 @@
     "domain": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.domain",
-      "inversedBy": "groups"
+      "target": "plugin::api-guard-pro.domain"
     },
     "parentGroup": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.group"
-    },
-    "resources": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "plugin::api-guard-pro.resource",
-      "inversedBy": "groups"
-    },
-    "roles": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "plugin::api-guard-pro.role",
-      "inversedBy": "groups"
     }
   }
 }

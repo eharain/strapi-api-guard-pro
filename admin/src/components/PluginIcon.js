@@ -1,5 +1,6 @@
 import React from 'react';
+import { Shield } from '@strapi/icons';
 
-const PluginIcon = () => <span>AG</span>;
+const PluginIcon = () => <Shield />;
 
 export default PluginIcon;

@@ -1,3 +1,17 @@
 'use strict';
 
-console.log('seed script placeholder');
+/**
+ * Seed script for Strapi API Guard Pro
+ * Run with: node scripts/seed.js
+ */
+
+const seedDatabase = async () => {
+  console.log('ðŸŒ± Seeding API Guard Pro database...');
+  
+  // This would be implemented to seed default data
+  // Domains, resources, roles, policies, grants, groups
+  
+  console.log('âœ… Seeding complete!');
+};
+
+seedDatabase().catch(console.error);

@@ -8,8 +8,7 @@
     "description": "Application domain for multi-tenancy"
   },
   "options": {
-    "draftAndPublish": false,
-    "comment": ""
+    "draftAndPublish": false
   },
   "pluginOptions": {
     "content-manager": {
@@ -50,24 +49,6 @@
     "matchKey": {
       "type": "string",
       "default": "x-app-name"
-    },
-    "resources": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.resource",
-      "mappedBy": "domain"
-    },
-    "roles": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.role",
-      "mappedBy": "domain"
-    },
-    "groups": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.group",
-      "mappedBy": "domain"
     }
   }
 }

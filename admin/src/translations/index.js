@@ -1,5 +1,5 @@
 import en from './en.json';
 
-export default {
-  en,
-};
+const trads = { en };
+
+export default trads;

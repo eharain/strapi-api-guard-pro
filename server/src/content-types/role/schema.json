@@ -44,20 +44,7 @@
     "domain": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.domain",
-      "inversedBy": "roles"
-    },
-    "groups": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "plugin::api-guard-pro.group",
-      "mappedBy": "roles"
-    },
-    "grants": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.grant",
-      "mappedBy": "role"
+      "target": "plugin::api-guard-pro.domain"
     }
   }
 }

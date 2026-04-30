@@ -1,7 +1,10 @@
-import admin from './admin';
-import guard from './api/guard';
+'use strict';
+
+import adminRoutes from './admin';
 
 export default {
-  admin,
-  'api-guard': guard,
+  admin: {
+    type: 'admin',
+    routes: adminRoutes
+  }
 };

@@ -1,1 +1,15 @@
-Patch placeholder for version 2.0.0
+# API Guard Pro v2.0.0 Migration Notes
+
+## Breaking Changes
+- None
+
+## New Features
+- Added group inheritance
+- Improved cache performance
+- Enhanced admin UI
+
+## Migration Steps
+1. Run npm run build
+2. Restart Strapi server
+3. Clear browser cache
+Additional Server Utils

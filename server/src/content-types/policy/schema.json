@@ -61,14 +61,7 @@
     "resource": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.resource",
-      "inversedBy": "policies"
-    },
-    "grants": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.grant",
-      "mappedBy": "policy"
+      "target": "plugin::api-guard-pro.resource"
     }
   }
 }

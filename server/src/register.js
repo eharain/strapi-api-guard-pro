@@ -1,15 +1,16 @@
 'use strict';
 
 export default ({ strapi }) => {
-  // Register plugin hooks and extend Strapi functionality
-
-  // Extend Strapi's core API with guard functionality
+  // Register plugin API
   strapi.apiGuard = {
-    can: (user, action, resource, context) => {
-      return strapi.service('plugin::api-guard-pro.engine').can({ user, action, resource, context });
+    can: async (params) => {
+      return strapi.service('plugin::api-guard-pro.permission-engine').can(params);
     },
-    clearCache: () => {
-      return strapi.service('plugin::api-guard-pro.cache').clearAll();
+    clearCache: (userId) => {
+      return strapi.service('plugin::api-guard-pro.permission-engine').clearCache(userId);
+    },
+    clearAllCache: () => {
+      return strapi.service('plugin::api-guard-pro.permission-engine').clearAllCache();
     }
   };
 

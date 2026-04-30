@@ -42,14 +42,16 @@
       "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
       "required": true
     },
-    "path": {
+    "pathPattern": {
       "type": "string",
-      "required": true
+      "required": true,
+      "regex": "^/.*$"
     },
     "aliasPath": {
-      "type": "string"
+      "type": "string",
+      "regex": "^/.*$"
     },
-    "uid": {
+    "contentTypeUid": {
       "type": "string"
     },
     "controllerAction": {
@@ -63,6 +65,11 @@
       "type": "boolean",
       "default": true
     },
+    "effect": {
+      "type": "enumeration",
+      "enum": ["allow", "deny"],
+      "default": "allow"
+    },
     "requestRules": {
       "type": "json",
       "default": {}
@@ -74,25 +81,12 @@
     "domain": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.domain",
-      "inversedBy": "resources"
+      "target": "plugin::api-guard-pro.domain"
     },
     "parentResource": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.resource"
-    },
-    "groups": {
-      "type": "relation",
-      "relation": "manyToMany",
-      "target": "plugin::api-guard-pro.group",
-      "mappedBy": "resources"
-    },
-    "policies": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "plugin::api-guard-pro.policy",
-      "mappedBy": "resource"
     }
   }
 }
