@@ -29,3 +29,4 @@ Thumbs.db
 .cache/
 /.vs
 /scripts/patches/*
+/scripts/plugin-combined.txt
