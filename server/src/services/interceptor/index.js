@@ -17,6 +17,9 @@ module.exports = ({ strapi }) => ({
       populate: { domain: true }
     });
 
+    const config = strapi.config.get('plugin::api-guard-pro') || {};
+    const enforcementMode = String(config.enforcementMode || 'enforce');
+
     let matchedResource = null;
 
     for (const resource of resources) {
@@ -41,7 +44,6 @@ module.exports = ({ strapi }) => ({
 
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
     const shouldRecord = recorder?.isEnabled?.() === true;
-    const config = strapi.config.get('plugin::api-guard-pro') || {};
     const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/uploads', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'];
     const configuredBypassPaths = Array.isArray(config.bypassPaths) ? config.bypassPaths : [];
     const bypassPaths = [...new Set([...defaultBypassPaths, ...configuredBypassPaths])];
@@ -67,7 +69,12 @@ module.exports = ({ strapi }) => ({
         return next();
       }
 
-      if (config.respectUsersPermissions !== false) {
+      if (enforcementMode === 'observe') {
+        return next();
+      }
+
+      const allowFallback = enforcementMode === 'hybrid' || config.respectUsersPermissions !== false;
+      if (allowFallback) {
         const allowedByUp = await this.isAllowedByUsersPermissions(ctx, method, path);
         if (allowedByUp) {
           return next();
@@ -94,6 +101,17 @@ module.exports = ({ strapi }) => ({
     if (!allowed) {
       if (shouldRecord) {
         recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
+      }
+
+      if (enforcementMode === 'observe') {
+        return next();
+      }
+
+      if (enforcementMode === 'hybrid') {
+        const allowedByUp = await this.isAllowedByUsersPermissions(ctx, method, path);
+        if (allowedByUp) {
+          return next();
+        }
       }
 
       if (!context.user) return ctx.unauthorized('Authentication required');

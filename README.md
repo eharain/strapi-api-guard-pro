@@ -17,6 +17,8 @@ Enterprise-grade API security and access control for Strapi 5.
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+- [Content Types Schema Reference](#content-types-schema-reference)
+- [ERP API Resource Alias Mapping](#erp-api-resource-alias-mapping)
 - [Admin API Endpoints](#admin-api-endpoints)
 - [Dynamic Values](#dynamic-values)
 - [Programmatic API](#programmatic-api)
@@ -125,6 +127,7 @@ module.exports = {
       headerElevatedKey: 'x-app-admin',
       denyByDefault: true,
       interceptorEnabled: true,
+      enforcementMode: 'enforce', // enforce | hybrid | observe
       bypassPaths: ['/admin', '/_health', '/documentation', '/uploads'],
       cacheTTL: 30000,
       enableAdminUI: true,
@@ -238,11 +241,62 @@ Content-Type: application/json
 | headerElevatedKey | string | `x-app-admin` | Elevation header key |
 | denyByDefault | boolean | `true` | Block when resource not matched |
 | interceptorEnabled | boolean | `true` | Enable request/response interception |
+| enforcementMode | string | `enforce` | Enforcement strategy: `enforce`, `hybrid`, or `observe` |
 | bypassPaths | string[] | `['/admin','/_health','/documentation','/uploads']` | Excluded paths |
 | cacheTTL | number | `30000` | Permission cache TTL in ms |
 | enableAdminUI | boolean | `true` | Show plugin admin UI |
 | enableLogging | boolean | `true` | Enable plugin logs |
 | logLevel | string | `info` | `debug`, `info`, `warn`, `error` |
+
+## Content Types Schema Reference
+
+For complete technical documentation of all plugin content-type schemas, see:
+
+- [`docs/content-types.md`](docs/content-types.md)
+
+This schema reference is intended to drive implementation and future schema evolution.
+
+## ERP API Resource Alias Mapping
+
+For ERP client API usage analysis and proposed alias-based resource mappings, see:
+
+- [`docs/erp-api-resource-alias-mapping.md`](docs/erp-api-resource-alias-mapping.md)
+
+This document shows how to move long/uncontrolled client query URLs into server-defined Resource aliases while allowing only dynamic runtime values from apps.
+
+## Gradual Enforcement and Parallel Rollout
+
+Use `enforcementMode` to roll out API Guard Pro without breaking existing systems.
+
+### Modes
+
+- `enforce` (default)
+  - Strict mode.
+  - API Guard Pro decisions are enforced.
+  - Unmatched resources are denied when `denyByDefault=true`.
+
+- `hybrid`
+  - Parallel-compatibility mode.
+  - API Guard Pro runs first, but if a route is unmatched or denied, Users & Permissions fallback is allowed.
+  - Useful during migration when legacy access controls still exist.
+
+- `observe`
+  - Shadow mode.
+  - API Guard Pro evaluates and records patterns but does not block traffic.
+  - Use for discovery and onboarding, not as permanent production enforcement.
+
+### Recommended rollout phases
+
+1. `observe`
+   - Enable recorder and analyze real traffic.
+   - Create initial resources/aliases from repeated patterns.
+2. `hybrid`
+   - Activate resources gradually per domain/use-case.
+   - Keep legacy systems running in parallel.
+3. `enforce`
+   - Switch domains/apps to strict enforcement after verification.
+
+This phased model lets teams adopt API Guard Pro safely while existing implementations continue to operate.
 
 ## Admin API Endpoints
 

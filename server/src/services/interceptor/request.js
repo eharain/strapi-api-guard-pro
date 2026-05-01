@@ -2,8 +2,11 @@
 
 module.exports = ({ strapi }) => ({
   async process(ctx, resource, context) {
-    const rules = resource.requestRules || {};
-    
+    const rules = {
+      ...(resource.requestRules || {}),
+      ...(resource.requestMutation || {})
+    };
+
     // Apply static filters
     if (rules.filters && typeof rules.filters === 'object') {
       ctx.query = ctx.query || {};
@@ -133,7 +136,24 @@ module.exports = ({ strapi }) => ({
         if (ctx.request?.body) delete ctx.request.body[param];
       }
     }
-    
+
+    // Header mutations
+    if (rules.forceHeaders && typeof rules.forceHeaders === 'object') {
+      for (const [key, value] of Object.entries(rules.forceHeaders)) {
+        const resolved = typeof value === 'string' ? this.resolveToken(value, context) : value;
+        if (resolved !== undefined) {
+          ctx.request.headers = ctx.request.headers || {};
+          ctx.request.headers[String(key).toLowerCase()] = resolved;
+        }
+      }
+    }
+
+    if (Array.isArray(rules.stripHeaders) && ctx.request?.headers) {
+      for (const header of rules.stripHeaders) {
+        delete ctx.request.headers[String(header).toLowerCase()];
+      }
+    }
+
     return ctx;
   },
   

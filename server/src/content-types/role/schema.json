@@ -49,8 +49,7 @@
     "users": {
       "type": "relation",
       "relation": "manyToMany",
-      "target": "plugin::users-permissions.user",
-      "mappedBy": "permission_roles"
+      "target": "plugin::users-permissions.user"
     }
   }
 }

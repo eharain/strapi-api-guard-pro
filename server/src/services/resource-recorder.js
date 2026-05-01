@@ -33,10 +33,16 @@ module.exports = () => {
     const pathname = normalizePath(pathnamePart || '/');
     const queryString = queryStringPart || '';
 
+    const segments = pathname.split('/').filter(Boolean);
+
     return {
+      fullUrl: raw,
       pathname,
       queryString,
-      segments: pathname.split('/').filter(Boolean)
+      segments,
+      apiPrefix: segments[0] || null,
+      collection: segments[1] || null,
+      identifier: segments[2] || null
     };
   };
 
@@ -176,6 +182,20 @@ module.exports = () => {
         pathPattern: entry.path,
         urlParts: entry.urlParts || null,
         queryParamsJson: entry.queryParamsJson || {},
+        recordedRequestRaw: {
+          method: entry.method,
+          path: entry.path,
+          url: entry.exampleUrl || null,
+          query: entry.exampleQuery || {},
+          body: entry.exampleBody || null,
+          status: entry.lastStatus ?? null
+        },
+        recordedRequestParsed: {
+          uri: entry.urlParts || null,
+          queryParams: entry.queryParamsJson || {},
+          body: entry.exampleBody || null,
+          requestRules: entry.suggestedRequestRules || {}
+        },
         requestRules: entry.suggestedRequestRules || {}
       }));
     },

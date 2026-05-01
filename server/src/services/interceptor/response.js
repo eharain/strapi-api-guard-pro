@@ -3,8 +3,11 @@
 module.exports = ({ strapi }) => ({
   process(body, resource) {
     if (!body || typeof body !== 'object') return body;
-    
-    const rules = resource.responseRules || {};
+
+    const rules = {
+      ...(resource.responseRules || {}),
+      ...(resource.responseMutation || {})
+    };
     let result = body;
     
     // Allow only specific fields

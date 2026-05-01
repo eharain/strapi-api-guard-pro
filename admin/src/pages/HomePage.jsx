@@ -12,8 +12,7 @@ import {
   Loader,
   Alert,
   Textarea,
-  Switch,
-  JSONInput
+  Switch
 } from '@strapi/design-system';
 import { useFetchClient } from '@strapi/strapi/admin';
 
@@ -61,7 +60,31 @@ const getEmptyForm = (tab) => {
     case 'domains':
       return { key: '', name: '', description: '', isActive: true, matchMode: 'header', matchKey: 'x-app-name', strapiRoleType: 'authenticated' };
     case 'resources':
-      return { key: '', displayName: '', description: '', type: 'standard', method: 'GET', pathPattern: '', aliasPath: '', contentTypeUid: '', isActive: true, effect: 'allow', requestRules: {}, responseRules: {} };
+      return {
+        key: '',
+        'route-name': '',
+        displayName: '',
+        description: '',
+        type: 'standard',
+        method: 'GET',
+        pathPattern: '',
+        aliasPath: '',
+        contentTypeUid: '',
+        'content-type-uid': '',
+        controllerAction: '',
+        domain: null,
+        parentResource: null,
+        isPublic: false,
+        isActive: true,
+        effect: 'allow',
+        requestRules: {},
+        responseRules: {},
+        matchCriteria: {},
+        requestMutation: {},
+        responseMutation: {},
+        recordedRequestRaw: {},
+        recordedRequestParsed: {}
+      };
     case 'roles':
       return { key: '', name: '', level: 'staff', description: '', isActive: true, domain: null };
     case 'policies':
@@ -72,6 +95,34 @@ const getEmptyForm = (tab) => {
       return { key: '', name: '', description: '', isActive: true, isBundle: false, domain: null, parentGroup: null };
     default:
       return {};
+  }
+};
+
+const ensureLeadingSlash = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.startsWith('/') ? raw : `/${raw}`;
+};
+
+const deriveRouteName = (method, pathPattern) => {
+  const cleanPath = ensureLeadingSlash(pathPattern).replace(/\//g, '.').replace(/[:{}]/g, '').replace(/\.+/g, '.');
+  const normalizedPath = cleanPath.replace(/^\./, '') || 'root';
+  return `${String(method || 'GET').toLowerCase()}.${normalizedPath}`;
+};
+
+const safeJsonStringify = (value, fallback = {}) => {
+  try {
+    return JSON.stringify(value ?? fallback, null, 2);
+  } catch {
+    return JSON.stringify(fallback, null, 2);
+  }
+};
+
+const parseJsonOrKeep = (text, currentValue, fallback = {}) => {
+  try {
+    return JSON.parse(text || JSON.stringify(fallback));
+  } catch {
+    return currentValue;
   }
 };
 
@@ -271,6 +322,19 @@ export default function HomePage() {
       type: item.type || 'standard',
       method: item.method || 'GET',
       pathPattern: item.pathPattern || item.path || '',
+      matchCriteria: {
+        method: item.method || 'GET',
+        pathPattern: item.pathPattern || item.path || '',
+        uri: item.urlParts || null,
+        queryParams: item.queryParamsJson || {}
+      },
+      requestMutation: {
+        ...(item.requestRules || {})
+      },
+      responseMutation: {
+        exampleQuery: item.exampleQuery || null,
+        exampleBody: item.exampleBody || null
+      },
       requestRules: {
         ...(item.requestRules || {}),
         recordedUrlParts: item.urlParts || null,
@@ -280,6 +344,20 @@ export default function HomePage() {
       responseRules: {
         exampleQuery: item.exampleQuery || null,
         exampleBody: item.exampleBody || null
+      },
+      recordedRequestRaw: item.recordedRequestRaw || {
+        method: item.method || 'GET',
+        path: item.path || item.pathPattern || '',
+        url: item.exampleUrl || null,
+        query: item.exampleQuery || {},
+        body: item.exampleBody || null,
+        status: item.lastStatus ?? null
+      },
+      recordedRequestParsed: item.recordedRequestParsed || {
+        uri: item.urlParts || null,
+        queryParams: item.queryParamsJson || {},
+        body: item.exampleBody || null,
+        requestRules: item.requestRules || {}
       },
       description: extensiveDescription
     });
@@ -318,6 +396,7 @@ export default function HomePage() {
       if (payload.role) payload.role = parseInt(payload.role, 10);
       if (payload.policy) payload.policy = parseInt(payload.policy, 10);
       if (payload.parentGroup) payload.parentGroup = parseInt(payload.parentGroup, 10);
+      if (payload.parentResource) payload.parentResource = parseInt(payload.parentResource, 10);
       
       if (editingRecord) {
         await put(endpoint(`/entities/${activeTab}/${editingRecord.id}`), { data: payload });
@@ -367,6 +446,7 @@ export default function HomePage() {
     if (form.role && typeof form.role === 'object') form.role = form.role.id;
     if (form.policy && typeof form.policy === 'object') form.policy = form.policy.id;
     if (form.parentGroup && typeof form.parentGroup === 'object') form.parentGroup = form.parentGroup.id;
+    if (form.parentResource && typeof form.parentResource === 'object') form.parentResource = form.parentResource.id;
     setFormData(form);
     setPanelOpen(true);
   }
@@ -488,15 +568,79 @@ export default function HomePage() {
           </>
         );
 
-      case 'resources':
+      case 'resources': {
+        const sectionLabel = (text) => (
+          <Box paddingBottom={2} paddingTop={4}>
+            <Typography variant="sigma" textColor="neutral500" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
+              {text}
+            </Typography>
+            <Divider />
+          </Box>
+        );
+
+        const handlePathChange = (rawValue) => {
+          const path = ensureLeadingSlash(rawValue);
+          const method = formData.method || 'GET';
+          const routeName = deriveRouteName(method, path);
+          setFormData(prev => ({ ...prev, pathPattern: path, 'route-name': routeName }));
+        };
+
+        const handleMethodChange = (method) => {
+          const routeName = deriveRouteName(method, formData.pathPattern || '');
+          setFormData(prev => ({ ...prev, method, 'route-name': routeName }));
+        };
+
+        const handleContentTypeChange = (uid) => {
+          setFormData(prev => ({ ...prev, contentTypeUid: uid }));
+        };
+
+        const handleJsonField = (field, text) => {
+          setFormData(prev => ({ ...prev, [field]: parseJsonOrKeep(text, prev[field], {}) }));
+        };
+
+        const hasRecordedData = formData.recordedRequestRaw && Object.keys(formData.recordedRequestRaw).length > 0;
+
         return (
           <>
-            {commonFields}
+            {/* ── IDENTITY ── */}
+            {sectionLabel('Identity')}
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Key"
+                name="key"
+                value={formData.key || ''}
+                onChange={e => setFormData(prev => ({ ...prev, key: e.target.value }))}
+                required
+                hint="Unique dot-separated identifier — letters, numbers, dots only. e.g. api.products.list"
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <TextInput
+                label="Display Name"
+                name="displayName"
+                value={formData.displayName || ''}
+                onChange={e => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
+                required
+                hint="Human-readable label shown in the UI and policy selectors"
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="Description"
+                name="description"
+                value={formData.description || ''}
+                onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </Box>
+
+            {/* ── TYPE & METHOD ── */}
+            {sectionLabel('Type & Method')}
             <Box paddingBottom={4}>
               <SingleSelect
-                label="Type"
+                label="Resource Type"
                 value={formData.type || 'standard'}
-                onChange={v => setFormData({ ...formData, type: v })}
+                onChange={v => setFormData(prev => ({ ...prev, type: v }))}
+                hint="standard = direct endpoint · extended = adds rules to existing · alias = clean URL shortcut"
               >
                 {RESOURCE_TYPES.map(opt => (
                   <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
@@ -505,22 +649,26 @@ export default function HomePage() {
             </Box>
             <Box paddingBottom={4}>
               <SingleSelect
-                label="Method"
+                label="HTTP Method"
                 value={formData.method || 'GET'}
-                onChange={v => setFormData({ ...formData, method: v })}
+                onChange={handleMethodChange}
+                required
               >
                 {METHOD_OPTIONS.map(opt => (
                   <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
                 ))}
               </SingleSelect>
             </Box>
+
+            {/* ── ROUTING ── */}
+            {sectionLabel('Routing')}
             <Box paddingBottom={4}>
               <TextInput
                 label="Path Pattern"
                 value={formData.pathPattern || ''}
-                onChange={e => setFormData({ ...formData, pathPattern: e.target.value })}
+                onChange={e => handlePathChange(e.target.value)}
                 required
-                hint="e.g., /api/products/:id"
+                hint="Must start with / — use :param for dynamic segments. e.g. /api/products/:id"
               />
             </Box>
             {formData.type === 'alias' && (
@@ -528,43 +676,32 @@ export default function HomePage() {
                 <TextInput
                   label="Alias Path"
                   value={formData.aliasPath || ''}
-                  onChange={e => setFormData({ ...formData, aliasPath: e.target.value })}
-                  hint="Clean URL for this resource"
+                  onChange={e => setFormData(prev => ({ ...prev, aliasPath: ensureLeadingSlash(e.target.value) }))}
+                  hint="Clean short URL clients call instead. e.g. /pos/products"
                 />
               </Box>
             )}
             <Box paddingBottom={4}>
+              <TextInput
+                label="Route Name"
+                value={formData['route-name'] || ''}
+                onChange={e => setFormData(prev => ({ ...prev, 'route-name': e.target.value }))}
+                hint="Auto-derived from method + path. Override only if needed."
+              />
+            </Box>
+
+            {/* ── STRAPI BINDING ── */}
+            {sectionLabel('Strapi Binding')}
+            <Box paddingBottom={4}>
               <SingleSelect
                 label="Content Type"
                 value={formData.contentTypeUid || ''}
-                onChange={v => setFormData({ ...formData, contentTypeUid: v })}
+                onChange={handleContentTypeChange}
+                hint="Link to the Strapi content type this resource targets"
               >
-                <SingleSelectOption value="">None</SingleSelectOption>
+                <SingleSelectOption value="">— None —</SingleSelectOption>
                 {strapiTypes.map(type => (
-                  <SingleSelectOption key={type.uid} value={type.uid}>{type.displayName}</SingleSelectOption>
-                ))}
-              </SingleSelect>
-            </Box>
-            <Box paddingBottom={4}>
-              <SingleSelect
-                label="Domain"
-                value={formData.domain ? String(formData.domain) : ''}
-                onChange={v => setFormData({ ...formData, domain: v || null })}
-              >
-                <SingleSelectOption value="">None</SingleSelectOption>
-                {domains.map(d => (
-                  <SingleSelectOption key={d.id} value={String(d.id)}>{labelFor(d)}</SingleSelectOption>
-                ))}
-              </SingleSelect>
-            </Box>
-            <Box paddingBottom={4}>
-              <SingleSelect
-                label="Effect"
-                value={formData.effect || 'allow'}
-                onChange={v => setFormData({ ...formData, effect: v })}
-              >
-                {EFFECT_OPTIONS.map(opt => (
-                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                  <SingleSelectOption key={type.uid} value={type.uid}>{type.displayName} ({type.uid})</SingleSelectOption>
                 ))}
               </SingleSelect>
             </Box>
@@ -572,40 +709,172 @@ export default function HomePage() {
               <TextInput
                 label="Controller Action"
                 value={formData.controllerAction || ''}
-                onChange={e => setFormData({ ...formData, controllerAction: e.target.value })}
-                hint="e.g., api::article.article.find"
+                onChange={e => setFormData(prev => ({ ...prev, controllerAction: e.target.value }))}
+                hint="e.g. api::product.product.find — auto-filled when created from Builder"
+              />
+            </Box>
+
+            {/* ── SCOPE & VISIBILITY ── */}
+            {sectionLabel('Scope & Visibility')}
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Domain"
+                value={formData.domain ? String(formData.domain) : ''}
+                onChange={v => setFormData(prev => ({ ...prev, domain: v || null }))}
+                hint="Restrict to a specific domain. Leave empty for global."
+              >
+                <SingleSelectOption value="">— Global (no domain) —</SingleSelectOption>
+                {domains.map(d => (
+                  <SingleSelectOption key={d.id} value={String(d.id)}>{labelFor(d)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Parent Resource"
+                value={formData.parentResource ? String(formData.parentResource) : ''}
+                onChange={v => setFormData(prev => ({ ...prev, parentResource: v || null }))}
+                hint="Optional — group this resource under a parent"
+              >
+                <SingleSelectOption value="">— None —</SingleSelectOption>
+                {resources.filter(r => r.id !== editingRecord?.id).map(r => (
+                  <SingleSelectOption key={r.id} value={String(r.id)}>{labelFor(r)}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Box paddingBottom={4}>
+              <SingleSelect
+                label="Default Effect"
+                value={formData.effect || 'allow'}
+                onChange={v => setFormData(prev => ({ ...prev, effect: v }))}
+                hint="allow = permit matched requests · deny = block by default"
+              >
+                {EFFECT_OPTIONS.map(opt => (
+                  <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>
+                ))}
+              </SingleSelect>
+            </Box>
+            <Flex gap={6} paddingBottom={4}>
+              <Switch
+                label="Public (no auth required)"
+                selected={formData.isPublic === true}
+                onChange={() => setFormData(prev => ({ ...prev, isPublic: !prev.isPublic }))}
+              />
+              <Switch
+                label="Active"
+                selected={formData.isActive !== false}
+                onChange={() => setFormData(prev => ({ ...prev, isActive: !prev.isActive }))}
+              />
+            </Flex>
+
+            {/* ── REQUEST RULES ── */}
+            {sectionLabel('Request Rules')}
+            <Box paddingBottom={2}>
+              <Typography variant="pi" textColor="neutral500">
+                Applied before the controller runs. Keys: <code>filters</code>, <code>dynamicFilters</code>, <code>forceBody</code>, <code>stripBodyFields</code>, <code>allowedFields</code>, <code>forcePopulate</code>, <code>allowedPopulate</code>, <code>injectHeaders</code>
+              </Typography>
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="requestRules (JSON)"
+                value={safeJsonStringify(formData.requestRules, {})}
+                onChange={e => handleJsonField('requestRules', e.target.value)}
+                hint='e.g. { "filters": { "isActive": true }, "stripBodyFields": ["internalNote"] }'
               />
             </Box>
             <Box paddingBottom={4}>
               <Textarea
-                label="Request Rules (JSON)"
-                value={JSON.stringify(formData.requestRules || {}, null, 2)}
-                onChange={e => {
-                  try {
-                    const next = JSON.parse(e.target.value || '{}');
-                    setFormData({ ...formData, requestRules: next });
-                  } catch {
-                    // keep previous valid JSON while editing invalid text
-                  }
-                }}
+                label="requestMutation (JSON)"
+                value={safeJsonStringify(formData.requestMutation, {})}
+                onChange={e => handleJsonField('requestMutation', e.target.value)}
+                hint="Transform query params or body before forwarding to Strapi"
               />
             </Box>
             <Box paddingBottom={4}>
               <Textarea
-                label="Response Rules (JSON)"
-                value={JSON.stringify(formData.responseRules || {}, null, 2)}
-                onChange={e => {
-                  try {
-                    const next = JSON.parse(e.target.value || '{}');
-                    setFormData({ ...formData, responseRules: next });
-                  } catch {
-                    // keep previous valid JSON while editing invalid text
-                  }
-                }}
+                label="matchCriteria (JSON)"
+                value={safeJsonStringify(formData.matchCriteria, {})}
+                onChange={e => handleJsonField('matchCriteria', e.target.value)}
+                hint="Extra matching conditions such as required headers or query params"
               />
             </Box>
+
+            {/* ── RESPONSE RULES ── */}
+            {sectionLabel('Response Rules')}
+            <Box paddingBottom={2}>
+              <Typography variant="pi" textColor="neutral500">
+                Applied after the controller responds. Keys: <code>filterFields</code>, <code>stripFields</code>
+              </Typography>
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="responseRules (JSON)"
+                value={safeJsonStringify(formData.responseRules, {})}
+                onChange={e => handleJsonField('responseRules', e.target.value)}
+                hint='e.g. { "filterFields": ["id", "name", "price"] }'
+              />
+            </Box>
+            <Box paddingBottom={4}>
+              <Textarea
+                label="responseMutation (JSON)"
+                value={safeJsonStringify(formData.responseMutation, {})}
+                onChange={e => handleJsonField('responseMutation', e.target.value)}
+                hint="Post-process response shape before returning to client"
+              />
+            </Box>
+
+            {/* ── RECORDED DATA (read-only) ── */}
+            {hasRecordedData && (
+              <>
+                {sectionLabel('Recorded Request Data (read-only)')}
+                <Box paddingBottom={2}>
+                  <Typography variant="pi" textColor="neutral500">
+                    Captured by the recorder. Use as a reference when writing request rules above.
+                  </Typography>
+                </Box>
+                <Box paddingBottom={3}>
+                  <Typography variant="pi" textColor="neutral600">Raw</Typography>
+                  <Box
+                    padding={3}
+                    style={{
+                      background: '#f4f4f8',
+                      borderRadius: 6,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      marginTop: 4
+                    }}
+                  >
+                    {safeJsonStringify(formData.recordedRequestRaw, {})}
+                  </Box>
+                </Box>
+                <Box paddingBottom={4}>
+                  <Typography variant="pi" textColor="neutral600">Parsed</Typography>
+                  <Box
+                    padding={3}
+                    style={{
+                      background: '#f4f4f8',
+                      borderRadius: 6,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      marginTop: 4
+                    }}
+                  >
+                    {safeJsonStringify(formData.recordedRequestParsed, {})}
+                  </Box>
+                </Box>
+              </>
+            )}
           </>
         );
+      }
 
       case 'roles':
         return (
@@ -857,27 +1126,33 @@ export default function HomePage() {
                     <Box paddingTop={4}>
                       <Typography variant="sigma">Assigned Roles</Typography>
                       <Box paddingTop={2}>
-                        {roleOptions.map(role => (
-                          <Flex key={role.id} gap={2} alignItems="center" paddingBottom={2}>
-                            <input
-                              type="checkbox"
-                              checked={selectedRoleIds.includes(String(role.id))}
-                              onChange={() => {
-                                if (selectedRoleIds.includes(String(role.id))) {
-                                  setSelectedRoleIds(selectedRoleIds.filter(id => id !== String(role.id)));
-                                } else {
-                                  setSelectedRoleIds([...selectedRoleIds, String(role.id)]);
-                                }
-                              }}
-                            />
-                            <Typography variant="pi">{role.key}</Typography>
-                            {role.domain && (
-                              <Typography variant="pi" textColor="neutral500" style={{ fontSize: 11 }}>
-                                ({labelFor(role.domain)})
-                              </Typography>
-                            )}
-                          </Flex>
-                        ))}
+                        {roleOptions.map(role => {
+                          const inputId = `assign-role-${role.id}`;
+                          return (
+                            <Flex key={role.id} gap={2} alignItems="center" paddingBottom={2}>
+                              <input
+                                id={inputId}
+                                type="checkbox"
+                                checked={selectedRoleIds.includes(String(role.id))}
+                                onChange={() => {
+                                  if (selectedRoleIds.includes(String(role.id))) {
+                                    setSelectedRoleIds(selectedRoleIds.filter(id => id !== String(role.id)));
+                                  } else {
+                                    setSelectedRoleIds([...selectedRoleIds, String(role.id)]);
+                                  }
+                                }}
+                              />
+                              <label htmlFor={inputId}>
+                                <Typography variant="pi">{role.key}</Typography>
+                              </label>
+                              {role.domain && (
+                                <Typography variant="pi" textColor="neutral500" style={{ fontSize: 11 }}>
+                                  ({labelFor(role.domain)})
+                                </Typography>
+                              )}
+                            </Flex>
+                          );
+                        })}
                       </Box>
                       <Button onClick={saveAssignment} loading={actionLoading} style={{ marginTop: 16 }}>
                         Save Assignment
@@ -1001,38 +1276,50 @@ export default function HomePage() {
                         <Box>
                           <Typography variant="pi" textColor="neutral600">Methods</Typography>
                           <Flex gap={2} wrap="wrap" paddingTop={1}>
-                            {['get', 'post', 'put', 'delete'].map(method => (
-                              <label key={`method-${method}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(resourceRecorder.filters?.methods?.[method])}
-                                  onChange={() => toggleRecorderFilter('methods', method)}
-                                />
-                                {method.toUpperCase()}
-                              </label>
-                            ))}
+                            {['get', 'post', 'put', 'delete'].map(method => {
+                              const inputId = `recorder-method-${method}`;
+                              return (
+                                <Flex key={`method-${method}`} alignItems="center" gap={2}>
+                                  <input
+                                    id={inputId}
+                                    type="checkbox"
+                                    checked={Boolean(resourceRecorder.filters?.methods?.[method])}
+                                    onChange={() => toggleRecorderFilter('methods', method)}
+                                  />
+                                  <label htmlFor={inputId} style={{ fontSize: 12 }}>
+                                    {method.toUpperCase()}
+                                  </label>
+                                </Flex>
+                              );
+                            })}
                           </Flex>
                         </Box>
 
                         <Box>
                           <Typography variant="pi" textColor="neutral600">URL Prefixes</Typography>
                           <Flex gap={2} wrap="wrap" paddingTop={1}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                            <Flex alignItems="center" gap={2}>
                               <input
+                                id="recorder-path-api"
                                 type="checkbox"
                                 checked={Boolean(resourceRecorder.filters?.paths?.api)}
                                 onChange={() => toggleRecorderFilter('paths', 'api')}
                               />
-                              /api
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                              <label htmlFor="recorder-path-api" style={{ fontSize: 12 }}>
+                                /api
+                              </label>
+                            </Flex>
+                            <Flex alignItems="center" gap={2}>
                               <input
+                                id="recorder-path-content-manager"
                                 type="checkbox"
                                 checked={Boolean(resourceRecorder.filters?.paths?.contentManager)}
                                 onChange={() => toggleRecorderFilter('paths', 'contentManager')}
                               />
-                              /content-manager
-                            </label>
+                              <label htmlFor="recorder-path-content-manager" style={{ fontSize: 12 }}>
+                                /content-manager
+                              </label>
+                            </Flex>
                           </Flex>
                         </Box>
                       </Flex>

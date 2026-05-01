@@ -1,6 +1,6 @@
 {
   "name": "strapi-api-guard-pro",
-  "version": "0.0.1",
+  "version": "0.0.1-alpha",
   "description": "Enterprise-grade API security and access control plugin for Strapi 5",
   "license": "MIT",
   "author": {

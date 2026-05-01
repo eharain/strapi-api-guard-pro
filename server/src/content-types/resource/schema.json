@@ -10,6 +10,7 @@
   "options": {
     "draftAndPublish": false
   },
+  
   "pluginOptions": {
     "content-manager": {
       "visible": false
@@ -19,27 +20,37 @@
     }
   },
   "attributes": {
+    "route-name": {
+      "type": "string",
+      "required": true,
+      "description": "Route for the resource"
+    },
+
     "key": {
       "type": "string",
       "required": true,
-      "unique": true
+      "unique": true,
+      "description": "Unique identifier for the resource , only characters and numbers are allowed no spaces or special characters"
     },
     "displayName": {
       "type": "string",
-      "required": true
+      "required": true,
+      "description": "Display name for the resource"
     },
     "description": {
-      "type": "text"
+      "type": "text",
+      "description": "Detailed description of the resource"
     },
     "type": {
       "type": "enumeration",
-      "enum": ["standard", "extended", "alias"],
+      "enum": [ "standard", "extended", "alias" ],
       "default": "standard",
-      "required": true
+      "required": true,
+      "description": "Type of the resource, where 'standard' is a regular API endpoint, 'extended' is an extension of an existing endpoint with additional rules or mutations, and 'alias' is an alternative path to an existing endpoint"
     },
     "method": {
       "type": "enumeration",
-      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      "enum": [ "GET", "POST", "PUT", "PATCH", "DELETE" ],
       "required": true
     },
     "pathPattern": {
@@ -67,7 +78,7 @@
     },
     "effect": {
       "type": "enumeration",
-      "enum": ["allow", "deny"],
+      "enum": [ "allow", "deny" ],
       "default": "allow"
     },
     "requestRules": {
@@ -77,6 +88,33 @@
     "responseRules": {
       "type": "json",
       "default": {}
+    },
+    "matchCriteria": {
+      "type": "json",
+      "default": {},
+      "description": "JSON structure defining criteria for matching incoming requests to this resource, such as headers, query parameters, or body content"
+    },
+    "requestMutation": {
+      "type": "json",
+      "default": {},
+      "description": "JSON structure defining how to mutate the incoming request data before processing it"
+
+    },
+    "responseMutation": {
+      "type": "json",
+      "description": "JSON structure defining how to mutate the response data before sending it back to the client",
+      "default": {}
+    },
+    "recordedRequestRaw": {
+      "type": "json",
+      "description": "Raw request data as recorded during request processing, useful for debugging and auditing",
+      "default": {}
+    },
+    "recordedRequestParsed": {
+      "type": "json",
+      "default": {},
+      "description": "Parsed request data for easier access in rules and mutations"
+
     },
     "domain": {
       "type": "relation",
