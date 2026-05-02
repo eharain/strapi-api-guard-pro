@@ -33,9 +33,9 @@ const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const RESOURCE_TYPES = ['standard', 'extended', 'alias'];
 const MATCH_MODE_OPTIONS = ['header', 'query', 'both'];
 const RESOURCE_SUB_TABS = [
-  { key: 'recorder', label: 'Recorder' },
-  { key: 'builder', label: 'Builder' },
-  { key: 'manual', label: 'Manual' }
+  { key: 'api-resources', label: 'API Resources' },
+  { key: 'content-types', label: 'Content Types' },
+  { key: 'recordings', label: 'API Request Recordings' }
 ];
 
 const endpoint = (path) => `/api-guard-pro${path}`;
@@ -147,7 +147,7 @@ export default function HomePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', variant: 'default' });
   const [userSearch, setUserSearch] = useState('');
-  const [resourceSubTab, setResourceSubTab] = useState('recorder');
+  const [resourceSubTab, setResourceSubTab] = useState('api-resources');
   const [resourceRecorder, setResourceRecorder] = useState({
     enabled: false,
     filters: {
@@ -158,6 +158,8 @@ export default function HomePage() {
     suggestions: []
   });
   const [resourceCatalog, setResourceCatalog] = useState([]);
+  const [showNewResourceCreate, setShowNewResourceCreate] = useState(false);
+  const [showBuilderInline, setShowBuilderInline] = useState(false);
 
   useEffect(() => { boot(); }, []);
   useEffect(() => {
@@ -168,8 +170,10 @@ export default function HomePage() {
     setFilters(emptyFilters());
     setMessage({ text: '', variant: 'default' });
 
+    setShowNewResourceCreate(false);
+    setShowBuilderInline(false);
     if (activeTab !== 'resources') {
-      setResourceSubTab('recorder');
+      setResourceSubTab('api-resources');
     }
   }, [activeTab]);
   useEffect(() => { setPage(1); }, [filters]);
@@ -313,7 +317,9 @@ export default function HomePage() {
     ].filter(Boolean).join(' | ');
 
     setActiveTab('resources');
-    setResourceSubTab('manual');
+    setResourceSubTab('api-resources');
+    setShowNewResourceCreate(false);
+    setShowBuilderInline(false);
     setEditingRecord(null);
     setFormData({
       ...getEmptyForm('resources'),
@@ -369,7 +375,9 @@ export default function HomePage() {
     const actionName = String(action.action || 'custom').toLowerCase();
 
     setActiveTab('resources');
-    setResourceSubTab('manual');
+    setResourceSubTab('api-resources');
+    setShowNewResourceCreate(false);
+    setShowBuilderInline(false);
     setEditingRecord(null);
     setFormData({
       ...getEmptyForm('resources'),
@@ -1219,18 +1227,37 @@ export default function HomePage() {
             <Flex gap={0} alignItems="flex-start">
               <Box style={{ flex: 1, minWidth: 0, paddingRight: panelOpen ? 16 : 0 }}>
                 <Flex justifyContent="space-between" alignItems="center" paddingBottom={3} wrap="wrap" gap={2}>
-                  <Typography variant="delta">{filteredRows.length} of {entityData[activeTab]?.length || 0} records</Typography>
+                  {(activeTab !== 'resources' || resourceSubTab === 'api-resources') && (
+                    <Typography variant="delta">
+                      {`${filteredRows.length} of ${entityData[activeTab]?.length || 0} records`}
+                    </Typography>
+                  )}
                   <Flex gap={2} wrap="wrap">
                     {activeTab === 'resources' && RESOURCE_SUB_TABS.map(tab => (
                       <Button
                         key={tab.key}
                         variant={resourceSubTab === tab.key ? 'default' : 'tertiary'}
-                        onClick={() => setResourceSubTab(tab.key)}
+                        onClick={() => {
+                          setResourceSubTab(tab.key);
+                          setShowNewResourceCreate(false);
+                          setShowBuilderInline(false);
+                        }}
                       >
                         {tab.label}
                       </Button>
                     ))}
-                    {(activeTab !== 'resources' || resourceSubTab === 'manual') && (
+                    {activeTab === 'resources' && resourceSubTab === 'api-resources' && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setShowNewResourceCreate(prev => !prev);
+                          setShowBuilderInline(false);
+                        }}
+                      >
+                        + New Resource
+                      </Button>
+                    )}
+                    {activeTab !== 'resources' && (
                       <Button onClick={() => { setEditingRecord(null); setFormData(getEmptyForm(activeTab)); setPanelOpen(true); }}>
                         + New {activeTab.slice(0, -1)}
                       </Button>
@@ -1238,7 +1265,73 @@ export default function HomePage() {
                   </Flex>
                 </Flex>
 
-                {activeTab === 'resources' && resourceSubTab === 'recorder' && (
+                {activeTab === 'resources' && resourceSubTab === 'api-resources' && showNewResourceCreate && (
+                  <Box padding={3} style={{ background: '#f0f7ff', border: '1px solid #c0d8f8', borderRadius: 8, marginBottom: 12 }}>
+                    <Typography variant="omega">Create a new resource:</Typography>
+                    <Flex gap={2} wrap="wrap" paddingTop={2}>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setShowBuilderInline(prev => !prev);
+                          setPanelOpen(false);
+                        }}
+                      >
+                        {showBuilderInline ? 'Hide Catalog' : 'Select a Route / Controller Action'}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingRecord(null);
+                          setFormData(getEmptyForm('resources'));
+                          setPanelOpen(true);
+                          setShowBuilderInline(false);
+                        }}
+                      >
+                        Blank Form
+                      </Button>
+                    </Flex>
+                    {showBuilderInline && (
+                      <Box paddingTop={3}>
+                        <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2} paddingBottom={2}>
+                          <Typography variant="beta">Select Route / Controller Action</Typography>
+                          <Button variant="tertiary" onClick={loadResourceCatalog}>Refresh Catalog</Button>
+                        </Flex>
+                        {resourceCatalog.length === 0 ? (
+                          <Typography variant="pi" textColor="neutral500">No content type actions discovered.</Typography>
+                        ) : (
+                          resourceCatalog.map(ct => (
+                            <Box key={ct.uid} padding={3} style={{ border: '1px solid #e2e8f5', borderRadius: 8, background: 'white', marginBottom: 10 }}>
+                              <Typography variant="sigma">{ct.displayName}</Typography>
+                              <Typography variant="pi" textColor="neutral500">{ct.uid}</Typography>
+                              <Box paddingTop={2}>
+                                <Typography variant="omega">Standard actions</Typography>
+                                {ct.standard.map((action, idx) => (
+                                  <Flex key={`${ct.uid}-inline-std-${idx}`} justifyContent="space-between" alignItems="center" paddingTop={1} wrap="wrap" gap={2}>
+                                    <Typography variant="pi">{action.method} {action.path}</Typography>
+                                    <Button size="S" variant="tertiary" onClick={() => buildResourceFromCatalog(ct, action)}>Use</Button>
+                                  </Flex>
+                                ))}
+                              </Box>
+                              {ct.extended.length > 0 && (
+                                <Box paddingTop={2}>
+                                  <Typography variant="omega">Extended actions</Typography>
+                                  {ct.extended.map((action, idx) => (
+                                    <Flex key={`${ct.uid}-inline-ext-${idx}`} justifyContent="space-between" alignItems="center" paddingTop={1} wrap="wrap" gap={2}>
+                                      <Typography variant="pi">{action.method} {action.path}</Typography>
+                                      <Button size="S" variant="tertiary" onClick={() => buildResourceFromCatalog(ct, action)}>Use</Button>
+                                    </Flex>
+                                  ))}
+                                </Box>
+                              )}
+                            </Box>
+                          ))
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
+                {activeTab === 'resources' && resourceSubTab === 'recordings' && (
                   <Box padding={3} style={{ background: '#fffdf0', border: '1px solid #f2e3a0', borderRadius: 8, marginBottom: 10 }}>
                     <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
                       <Box>
@@ -1366,7 +1459,7 @@ export default function HomePage() {
                   </Box>
                 )}
 
-                {activeTab === 'resources' && resourceSubTab === 'builder' && (
+                {activeTab === 'resources' && resourceSubTab === 'content-types' && (
                   <Box padding={3} style={{ background: '#f4f8ff', border: '1px solid #d8e6ff', borderRadius: 8, marginBottom: 10 }}>
                     <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2}>
                       <Box>
@@ -1417,6 +1510,9 @@ export default function HomePage() {
                   </Box>
                 )}
 
+                {/* Filters, List, Pagination — only shown in API Resources sub-tab (or non-resources tabs) */}
+                {(activeTab !== 'resources' || resourceSubTab === 'api-resources') && (
+                <>
                 {/* Filters */}
                 <Box padding={3} style={{ background: '#f8f9fc', border: '1px solid #e8eaf0', borderRadius: 8, marginBottom: 10 }}>
                   <Flex gap={2} wrap="wrap" alignItems="flex-end">
@@ -1658,10 +1754,12 @@ export default function HomePage() {
                     </Button>
                   </Flex>
                 )}
+                </>
+                )}
               </Box>
 
               {/* Edit/Create Panel */}
-              {panelOpen && (activeTab !== 'resources' || resourceSubTab === 'manual') && (
+              {panelOpen && (activeTab !== 'resources' || resourceSubTab === 'api-resources') && (
                 <Box style={{ width: 450, marginLeft: 16, background: 'white', borderRadius: 8, border: '1px solid #e8e8e8', padding: 16 }}>
                   <Typography variant="beta" paddingBottom={4}>
                     {editingRecord ? `Edit ${activeTab.slice(0, -1)}` : `Create New ${activeTab.slice(0, -1)}`}
