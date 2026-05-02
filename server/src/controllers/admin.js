@@ -187,31 +187,45 @@ module.exports = ({ strapi }) => ({
 
   async resourceRecorder(ctx) {
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
-    const records = recorder.list();
+    const settings = recorder.getSettings();
+    const suggestions = await recorder.suggestions();
 
     ctx.send({
       data: {
-        enabled: recorder.isEnabled(),
-        filters: recorder.getFilters(),
-        records,
-        suggestions: recorder.suggestions()
+        ...settings,
+        records: suggestions,
+        suggestions
       }
     });
   },
 
   async setResourceRecorder(ctx) {
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
-    const enabled = recorder.setEnabled(Boolean(ctx.request.body?.enabled));
-    const filters = recorder.setFilters(ctx.request.body?.filters || {});
-
-    ctx.send({ data: { enabled, filters } });
+    const body = ctx.request.body || {};
+    const enabled = recorder.setEnabled(Boolean(body.enabled));
+    const filters = recorder.setFilters(body.filters || {});
+    if (body.maxRecords !== undefined) recorder.setMaxRecords(body.maxRecords);
+    if (body.timeLimitSeconds !== undefined) recorder.setTimeLimitSeconds(body.timeLimitSeconds);
+    ctx.send({ data: recorder.getSettings() });
   },
 
   async clearResourceRecorder(ctx) {
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
-    recorder.clear();
-
+    await recorder.clear();
     ctx.send({ data: { ok: true } });
+  },
+
+  async listRecorderLogs(ctx) {
+    const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
+    const query = ctx.query || {};
+    const result = await recorder.listPaginated({
+      page: query.page,
+      pageSize: query.pageSize,
+      search: query.search || '',
+      method: query.method || '',
+      matched: query.matched || ''
+    });
+    ctx.send(result);
   },
 
   async resourceBuilderCatalog(ctx) {

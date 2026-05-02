@@ -7,5 +7,7 @@ export const ENDPOINTS = {
   USERS: `${API_BASE}/users`,
   USER_ROLES: (userId) => `${API_BASE}/users/${userId}/roles`,
   STRAPI_TYPES: `${API_BASE}/strapi-content-types`,
-  CLEAR_CACHE: `${API_BASE}/clear-cache`
+  CLEAR_CACHE: `${API_BASE}/clear-cache`,
+  RESOURCE_RECORDER: `${API_BASE}/resource-recorder`,
+  RECORDER_LOGS: `${API_BASE}/resource-recorder/logs`,
 };

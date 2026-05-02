@@ -1,0 +1,72 @@
+{
+  "kind": "collectionType",
+  "collectionName": "guard_api_recordings",
+  "info": {
+    "singularName": "api-recording",
+    "pluralName": "api-recordings",
+    "displayName": "API Recording",
+    "description": "Persisted API request recording captured by the resource recorder"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "visible": false
+    },
+    "content-type-builder": {
+      "visible": false
+    }
+  },
+  "attributes": {
+    "recordKey": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "description": "Composite key: METHOD /path"
+    },
+    "method": {
+      "type": "string",
+      "required": true
+    },
+    "path": {
+      "type": "string",
+      "required": true
+    },
+    "count": {
+      "type": "integer",
+      "default": 1
+    },
+    "firstSeenAt": {
+      "type": "string"
+    },
+    "lastSeenAt": {
+      "type": "string"
+    },
+    "lastStatus": {
+      "type": "integer"
+    },
+    "matched": {
+      "type": "boolean",
+      "default": false
+    },
+    "exampleUrl": {
+      "type": "text"
+    },
+    "urlParts": {
+      "type": "json"
+    },
+    "queryParamsJson": {
+      "type": "json"
+    },
+    "exampleQuery": {
+      "type": "json"
+    },
+    "exampleBody": {
+      "type": "json"
+    },
+    "suggestedRequestRules": {
+      "type": "json"
+    }
+  }
+}

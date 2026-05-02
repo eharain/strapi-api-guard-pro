@@ -6,6 +6,7 @@ const role = require('./role');
 const policy = require('./policy');
 const grant = require('./grant');
 const group = require('./group');
+const apiRecording = require('./api-recording');
 
 module.exports = {
   domain,
@@ -14,4 +15,5 @@ module.exports = {
   policy,
   grant,
   group,
+  'api-recording': apiRecording,
 };

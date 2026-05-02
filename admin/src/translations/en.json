@@ -1,9 +1,9 @@
 {
   "plugin.name": "API Guard Pro",
   "plugin.description": "Enterprise-grade API security and access control",
-  "pages.domains": "Domains",
-  "pages.resources": "Resources",
-  "pages.roles": "Roles",
+  "pages.domains": "App Domains",
+  "pages.resources": "API Resources",
+  "pages.roles": "App Domain Roles",
   "pages.policies": "Policies",
   "pages.grants": "Grants",
   "pages.groups": "Groups",

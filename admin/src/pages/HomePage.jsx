@@ -84,7 +84,7 @@ export default function HomePage() {
     const [actionLoading, setActionLoading] = useState(false);
     const [message, setMessage] = useState({ text: '', variant: 'default' });
     const [userSearch, setUserSearch] = useState('');
-    const [resourceSubTab, setResourceSubTab] = useState('recorder');
+    const [resourceSubTab, setResourceSubTab] = useState('api-request-recordings');
     const [resourceRecorder, setResourceRecorder] = useState({
         enabled: false,
         filters: { methods: { get: true, post: true, put: true, delete: true }, paths: { api: true, contentManager: true } },
@@ -101,7 +101,7 @@ export default function HomePage() {
         setFormData(getEmptyForm(activeTab));
         setMessage({ text: '', variant: 'default' });
 
-        if (activeTab !== 'resources') setResourceSubTab('recorder');
+        if (activeTab !== 'resources') setResourceSubTab('api-request-recordings');
 
         if (pendingPanelRef.current) {
             const { subTab, form } = pendingPanelRef.current;
@@ -169,10 +169,29 @@ export default function HomePage() {
     async function saveRecorderConfig(nextConfig = {}) {
         setActionLoading(true);
         try {
-            await put(endpoint('/resource-recorder'), { enabled: nextConfig.enabled, filters: nextConfig.filters });
+            await put(endpoint('/resource-recorder'), {
+                enabled: nextConfig.enabled,
+                filters: nextConfig.filters,
+                ...(nextConfig.maxRecords !== undefined ? { maxRecords: nextConfig.maxRecords } : {}),
+                ...(nextConfig.timeLimitSeconds !== undefined ? { timeLimitSeconds: nextConfig.timeLimitSeconds } : {})
+            });
             await loadResourceRecorder();
             notify('Recorder settings updated.', 'success');
         } catch { notify('Failed to update recorder settings.', 'danger'); }
+        finally { setActionLoading(false); }
+    }
+
+    async function saveRecorderSettings(settings = {}) {
+        setActionLoading(true);
+        try {
+            await put(endpoint('/resource-recorder'), {
+                enabled: resourceRecorder.enabled,
+                filters: resourceRecorder.filters,
+                ...settings
+            });
+            await loadResourceRecorder();
+            notify('Recorder settings saved.', 'success');
+        } catch { notify('Failed to save recorder settings.', 'danger'); }
         finally { setActionLoading(false); }
     }
 
@@ -210,12 +229,12 @@ export default function HomePage() {
             description: [`Suggested from recorder (${item.count || 1} hit${(item.count || 1) > 1 ? 's' : ''})`, item.exampleUrl ? `Example URL: ${item.exampleUrl}` : null, item.lastStatus ? `Last status: ${item.lastStatus}` : null].filter(Boolean).join(' | ')
         };
         if (activeTab === 'resources') {
-            setResourceSubTab('manual');
+            setResourceSubTab('api-resources');
             setEditingRecord(null);
             setFormData(form);
             setPanelOpen(true);
         } else {
-            pendingPanelRef.current = { subTab: 'manual', form };
+            pendingPanelRef.current = { subTab: 'api-resources', form };
             setActiveTab('resources');
         }
     }
@@ -235,12 +254,12 @@ export default function HomePage() {
             description: `Generated from builder catalog (${action.type || 'standard'})`
         };
         if (activeTab === 'resources') {
-            setResourceSubTab('manual');
+            setResourceSubTab('api-resources');
             setEditingRecord(null);
             setFormData(form);
             setPanelOpen(true);
         } else {
-            pendingPanelRef.current = { subTab: 'manual', form };
+            pendingPanelRef.current = { subTab: 'api-resources', form };
             setActiveTab('resources');
         }
     }
@@ -300,7 +319,7 @@ export default function HomePage() {
 
     function openEditForm(record) {
         setEditingRecord(record);
-        if (activeTab === 'resources') setResourceSubTab('manual');
+        if (activeTab === 'resources') setResourceSubTab('api-resources');
         const form = { ...record };
         if (form.domain && typeof form.domain === 'object') form.domain = form.domain.id;
         if (form.resource && typeof form.resource === 'object') form.resource = form.resource.id;
@@ -433,11 +452,11 @@ export default function HomePage() {
                             recorder={resourceRecorder}
                             subTab={resourceSubTab}
                             onSubTabChange={setResourceSubTab}
-                            onWizardOpen={() => setWizardOpen(true)}
                             onToggleRecorderEnabled={() => saveRecorderConfig({ enabled: !resourceRecorder.enabled, filters: resourceRecorder.filters })}
                             onRefreshRecorder={loadResourceRecorder}
                             onClearRecorder={clearRecorder}
                             onToggleRecorderFilter={toggleRecorderFilter}
+                            onSaveRecorderSettings={saveRecorderSettings}
                             onCreateFromSuggestion={buildResourceFromSuggestion}
                             onRefreshCatalog={loadResourceCatalog}
                             onUseFromCatalog={buildResourceFromCatalog}

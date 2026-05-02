@@ -50,7 +50,7 @@ module.exports = ({ strapi }) => ({
 
     if (!matchedResource) {
       const recordedEntry = shouldRecord
-        ? recorder.record({
+        ? await recorder.record({
           method,
           path,
           url: rawUrl,
@@ -100,7 +100,7 @@ module.exports = ({ strapi }) => ({
 
     if (!allowed) {
       if (shouldRecord) {
-        recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
+        await recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
       }
 
       if (enforcementMode === 'observe') {
@@ -122,7 +122,7 @@ module.exports = ({ strapi }) => ({
       const userRoleType = context.user?.role?.type || context.user?.role?.name || 'public';
       if (context.domain.strapiRoleType && context.domain.strapiRoleType !== userRoleType) {
         if (shouldRecord) {
-          recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
+          await recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
         }
 
         return ctx.forbidden('User role cannot access this domain');
@@ -134,7 +134,7 @@ module.exports = ({ strapi }) => ({
     await next();
 
     if (shouldRecord) {
-      recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: ctx.status || 200 });
+      await recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: ctx.status || 200 });
     }
 
     ctx.body = await responseService.process(ctx.body, matchedResource);
