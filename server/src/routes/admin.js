@@ -51,6 +51,12 @@ module.exports = [
   },
   {
     method: 'GET',
+    path: '/resource-recorder/to-resource/:recordKey',
+    handler: 'admin.recordingToResource',
+    config: { auth: false }
+  },
+  {
+    method: 'GET',
     path: '/resource-recorder/logs',
     handler: 'admin.listRecorderLogs',
     config: { auth: false }

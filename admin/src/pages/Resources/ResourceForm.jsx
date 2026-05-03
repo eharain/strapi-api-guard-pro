@@ -65,6 +65,8 @@ function ResourceForm({ formData, onChange, domains, resources, strapiTypes, edi
     };
 
     const hasRecordedData = formData.recordedRequestRaw && Object.keys(formData.recordedRequestRaw).length > 0;
+    const recordedParsedQueryRules = formData.recordedParsedQueryRules || {};
+    const hasRecordedQueryParams = Object.keys(recordedParsedQueryRules).length > 0;
 
     return (
         <>
@@ -288,6 +290,88 @@ function ResourceForm({ formData, onChange, domains, resources, strapiTypes, edi
                     hint="Post-process response shape before returning to client"
                 />
             </Box>
+
+            {/* ── RECORDED QUERY PARAMETERS ── */}
+            {hasRecordedQueryParams && (
+                <>
+                    <SectionLabel text="Recorded Query Parameters" />
+                    <Box paddingBottom={2}>
+                        <Typography variant="pi" textColor="neutral500">
+                            Strapi REST query params parsed from the recorded URL. These have been pre-filled into <strong>Request Rules</strong> above.
+                        </Typography>
+                    </Box>
+                    {recordedParsedQueryRules.filters && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>filters</code> → <code>requestRules.filters</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {safeJsonStringify(recordedParsedQueryRules.filters, {})}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.allowedFields && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>fields</code> → <code>requestRules.allowedFields</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {safeJsonStringify(recordedParsedQueryRules.allowedFields, [])}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.allowedPopulate && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>populate</code> → <code>requestRules.allowedPopulate</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {safeJsonStringify(recordedParsedQueryRules.allowedPopulate, [])}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.allowedSort && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>sort</code> → <code>requestRules.allowedSort</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {safeJsonStringify(recordedParsedQueryRules.allowedSort, [])}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.defaultPagination && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>pagination</code> → <code>requestRules.defaultPagination</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {safeJsonStringify(recordedParsedQueryRules.defaultPagination, {})}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.allowedLocale && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>locale</code> → <code>requestRules.allowedLocale</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {String(recordedParsedQueryRules.allowedLocale)}
+                            </Box>
+                        </Box>
+                    )}
+                    {recordedParsedQueryRules.allowedStatus && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral600" style={{ display: 'block', marginBottom: 4 }}>
+                                <code>status</code> → <code>requestRules.allowedStatus</code>
+                            </Typography>
+                            <Box padding={2} style={{ background: 'var(--strapi-colors-neutral100, #f4f4f8)', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                                {String(recordedParsedQueryRules.allowedStatus)}
+                            </Box>
+                        </Box>
+                    )}
+                </>
+            )}
 
             {/* ── RECORDED DATA (read-only) ── */}
             {hasRecordedData && (

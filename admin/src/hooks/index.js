@@ -2,3 +2,8 @@ export { useFetchData } from './useFetchData';
 export { useFilters } from './useFilters';
 export { usePagination } from './usePagination';
 export { usePermissions } from './usePermissions';
+export { useAppData } from './useAppData';
+export { useRecorder } from './useRecorder';
+export { useResourceBuilder } from './useResourceBuilder';
+export { useEntityCrud } from './useEntityCrud';
+export { useUserAssignment } from './useUserAssignment';

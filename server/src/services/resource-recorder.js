@@ -146,6 +146,74 @@ module.exports = ({ strapi }) => {
       }));
     },
 
+    toResourceForm(entry) {
+      const qp = (entry.queryParamsJson && typeof entry.queryParamsJson === 'object') ? entry.queryParamsJson : {};
+
+      // Map Strapi standard REST query params to their requestRules counterparts
+      const parsedQueryRules = {};
+      if (qp.filters && typeof qp.filters === 'object') parsedQueryRules.filters = qp.filters;
+      if (qp.fields) {
+        const f = qp.fields;
+        parsedQueryRules.allowedFields = Array.isArray(f) ? f.map(String) : [String(f)];
+      }
+      if (qp.populate) {
+        const p = qp.populate;
+        parsedQueryRules.allowedPopulate = Array.isArray(p) ? p.map(String) : typeof p === 'object' ? Object.keys(p) : [String(p)];
+      }
+      if (qp.sort) parsedQueryRules.allowedSort = qp.sort;
+      if (qp.pagination && typeof qp.pagination === 'object') parsedQueryRules.defaultPagination = qp.pagination;
+      if (qp.locale) parsedQueryRules.allowedLocale = qp.locale;
+      if (qp.status) parsedQueryRules.allowedStatus = qp.status;
+
+      const baseRules = entry.suggestedRequestRules || {};
+      const count = entry.count || 1;
+
+      return {
+        // Identity
+        key: entry.recordKey,
+        displayName: entry.method + ' ' + entry.path,
+        description: [
+          `Suggested from recorder (${count} hit${count > 1 ? 's' : ''})`,
+          entry.exampleUrl ? `Example URL: ${entry.exampleUrl}` : null,
+          entry.lastStatus ? `Last status: ${entry.lastStatus}` : null
+        ].filter(Boolean).join(' | '),
+
+        // Type & method
+        type: entry.matched ? 'extended' : 'standard',
+        method: entry.method || 'GET',
+
+        // Routing
+        pathPattern: entry.path || '',
+        aliasPath: '',
+        'route-name': (entry.method || 'get').toLowerCase() + '.' + (entry.path || '').replace(/\//g, '.').replace(/[:{}]/g, '').replace(/\.+/g, '.').replace(/^\./, '') || 'root',
+
+        // Strapi binding (recorder has no controller info — left for user to fill)
+        contentTypeUid: '',
+        'content-type-uid': '',
+        controllerAction: '',
+
+        // Defaults
+        domain: null,
+        parentResource: null,
+        isPublic: false,
+        isActive: true,
+        effect: 'allow',
+
+        // Rules — server-derived from recorded query params
+        requestRules: { ...baseRules, ...parsedQueryRules, recordedUrlParts: entry.urlParts || null, recordedQueryParams: qp, recordedBodySample: entry.exampleBody || null },
+        responseRules: {},
+        matchCriteria: { method: entry.method || 'GET', pathPattern: entry.path || '', uri: entry.urlParts || null, queryParams: qp },
+        requestMutation: { ...baseRules },
+        responseMutation: { exampleQuery: entry.exampleQuery || null, exampleBody: entry.exampleBody || null },
+
+        // Recorded metadata for the form UI
+        recordedQueryParams: qp,
+        recordedParsedQueryRules: parsedQueryRules,
+        recordedRequestRaw: { method: entry.method, path: entry.path, url: entry.exampleUrl || null, query: entry.exampleQuery || {}, body: entry.exampleBody || null, status: entry.lastStatus != null ? entry.lastStatus : null },
+        recordedRequestParsed: { uri: entry.urlParts || null, queryParams: qp, body: entry.exampleBody || null, requestRules: baseRules }
+      };
+    },
+
     async record(payload = {}) {
       if (!enabled) return null;
       const method = String(payload.method || '').toUpperCase();

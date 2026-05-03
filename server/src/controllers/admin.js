@@ -185,6 +185,17 @@ module.exports = ({ strapi }) => ({
     ctx.send({ data: types });
   },
 
+  async recordingToResource(ctx) {
+    const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
+    const recordKey = decodeURIComponent(String(ctx.params.recordKey || '').trim());
+    if (!recordKey) return ctx.badRequest('Invalid recordKey');
+
+    const entry = await strapi.db.query('plugin::api-guard-pro.api-recording').findOne({ where: { recordKey } });
+    if (!entry) return ctx.notFound('Recording not found');
+
+    ctx.send({ data: recorder.toResourceForm(entry) });
+  },
+
   async resourceRecorder(ctx) {
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
     const settings = recorder.getSettings();
