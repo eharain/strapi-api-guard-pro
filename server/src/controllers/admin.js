@@ -173,13 +173,24 @@ module.exports = ({ strapi }) => ({
   async strapiContentTypes(ctx) {
     const allTypes = Object.values(strapi.contentTypes);
     const types = allTypes
-      .filter(ct => !ct.plugin && ct.kind === 'collectionType')
+      .filter(ct => !ct.plugin)
       .map(ct => ({
         uid: ct.uid,
         displayName: ct.info?.displayName || ct.uid,
+        kind: ct.kind,
+        pluralName: ct.info?.pluralName || null,
+        singularName: ct.info?.singularName || null,
         attributes: Object.entries(ct.attributes || {})
-          .filter(([, attr]) => attr.type !== 'relation' && attr.type !== 'dynamiczone')
-          .map(([name]) => name)
+          .filter(([, attr]) => attr.type !== 'dynamiczone')
+          .map(([name, attr]) => ({
+            name,
+            type: attr.type,
+            target: attr.target || null,
+            component: attr.component || null,
+            relation: attr.relation || null,
+            required: attr.required || false,
+            private: attr.private || false,
+          }))
       }));
 
     ctx.send({ data: types });

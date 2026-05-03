@@ -323,10 +323,65 @@ function Resources({
         onOpenNew();
     }
 
-    return (
-        <Flex gap={0} alignItems="flex-start">
-            <Box style={{ flex: 1, minWidth: 0, paddingRight: panelOpen ? 20 : 0 }}>
+    // ── Full-width form view (replaces list when panelOpen) ──────────────────
+    if (panelOpen) {
+        return (
+            <Box>
+                {/* Top action bar */}
+                <Flex justifyContent="space-between" alignItems="center" paddingBottom={4} wrap="wrap" gap={2}>
+                    <Flex alignItems="center" gap={3}>
+                        <Button variant="tertiary" size="S" onClick={onCancelForm}>
+                            ← Back to List
+                        </Button>
+                        <Box>
+                            <Typography variant="beta">
+                                {editingRecord ? 'Edit Resource' : 'New Resource'}
+                            </Typography>
+                            {editingRecord && (
+                                <Typography variant="pi" textColor="neutral500" style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                                    #{editingRecord.id} · {editingRecord.key}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Flex>
+                    <Flex gap={2}>
+                        <Button variant="tertiary" onClick={onCancelForm} disabled={actionLoading}>Cancel</Button>
+                        <Button onClick={onSubmitForm} loading={actionLoading}>
+                            {editingRecord ? 'Update Resource' : 'Create Resource'}
+                        </Button>
+                    </Flex>
+                </Flex>
 
+                <Divider />
+
+                <Box paddingTop={4}>
+                    <ResourceForm
+                        formData={formData}
+                        onChange={onFormChange}
+                        domains={domains}
+                        resources={resources}
+                        strapiTypes={strapiTypes}
+                        editingRecord={editingRecord}
+                    />
+                </Box>
+
+                {/* Bottom action bar */}
+                <Box paddingTop={6} paddingBottom={4}>
+                    <Divider />
+                    <Flex gap={2} justifyContent="flex-end" paddingTop={4}>
+                        <Button variant="tertiary" onClick={onCancelForm} disabled={actionLoading}>Cancel</Button>
+                        <Button onClick={onSubmitForm} loading={actionLoading}>
+                            {editingRecord ? 'Update Resource' : 'Create Resource'}
+                        </Button>
+                    </Flex>
+                </Box>
+            </Box>
+        );
+    }
+
+    // ── Normal list view ─────────────────────────────────────────────────────
+    return (
+        <Box>
                 {/* Tab bar */}
                 <Flex gap={2} wrap="wrap" paddingBottom={4}>
                     {RESOURCE_TABS.map(tab => (
@@ -418,7 +473,7 @@ function Resources({
                                         <Box paddingBottom={3}>
                                             <Typography variant="delta">Select a Route or Action</Typography>
                                             <Typography variant="pi" textColor="neutral500">
-                                                Click <strong>Use</strong> next to any route to pre-fill the resource form on the right.
+                                                Click <strong>Use</strong> next to any route to pre-fill the resource form.
                                             </Typography>
                                         </Box>
                                         <BuilderCatalog
@@ -477,62 +532,9 @@ function Resources({
                         />
                     </Box>
                 )}
-            </Box>
-
-            {/* Edit / Create side panel */}
-            {panelOpen && (
-                <Box
-                    background="neutral0"
-                    style={{
-                        width: 480,
-                        flexShrink: 0,
-                        marginLeft: 20,
-                        borderRadius: 10,
-                        border: '1px solid #e0e0e8',
-                        padding: 20,
-                        maxHeight: 'calc(100vh - 120px)',
-                        overflowY: 'auto',
-                        position: 'sticky',
-                        top: 16,
-                    }}
-                >
-                    <Flex justifyContent="space-between" alignItems="flex-start" paddingBottom={3}>
-                        <Box>
-                            <Typography variant="beta">
-                                {editingRecord ? 'Edit Resource' : 'New Resource'}
-                            </Typography>
-                            {editingRecord && (
-                                <Typography variant="pi" textColor="neutral500" style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                                    #{editingRecord.id} &middot; {editingRecord.key}
-                                </Typography>
-                            )}
-                        </Box>
-                        <Button variant="tertiary" size="S" onClick={onCancelForm}>Close</Button>
-                    </Flex>
-
-                    <Divider />
-
-                    <Box paddingTop={3}>
-                        <ResourceForm
-                            formData={formData}
-                            onChange={onFormChange}
-                            domains={domains}
-                            resources={resources}
-                            strapiTypes={strapiTypes}
-                            editingRecord={editingRecord}
-                        />
-                    </Box>
-
-                    <Flex gap={2} justifyContent="flex-end" paddingTop={4}>
-                        <Button variant="tertiary" onClick={onCancelForm} disabled={actionLoading}>Cancel</Button>
-                        <Button onClick={onSubmitForm} loading={actionLoading}>
-                            {editingRecord ? 'Update' : 'Create'}
-                        </Button>
-                    </Flex>
-                </Box>
-            )}
-        </Flex>
+        </Box>
     );
 }
 
 export default Resources;
+

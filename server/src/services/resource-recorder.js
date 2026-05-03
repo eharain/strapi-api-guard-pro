@@ -12,6 +12,126 @@ const DEFAULT_FILTERS = {
 const DEFAULT_MAX_RECORDS = 500;
 const DEFAULT_TIME_LIMIT_SECONDS = 0;
 
+// Replace ID-like path segments with :id (UUIDs, numeric IDs, long document IDs)
+const ID_SEGMENT = /^([a-f0-9]{8,}(?:-[a-f0-9\d]+)+|[a-z0-9]{20,}|[0-9]+)$/i;
+
+function convertPathToPattern(path) {
+  const segments = String(path || '').split('/');
+  return segments.map(seg => ID_SEGMENT.test(seg) ? ':id' : seg).join('/') || '/';
+}
+
+// Match a path pattern string (with :param placeholders) against a concrete path
+function matchRoutePattern(pattern, path) {
+  const patParts = pattern.split('/');
+  const pathParts = path.split('/');
+  if (patParts.length !== pathParts.length) return false;
+  return patParts.every((p, i) => p.startsWith(':') || p === pathParts[i]);
+}
+
+// Walk all Strapi content type routes and find the best match for method + path
+function inferStrapiBinding(strapi, method, recordedPath) {
+  const upperMethod = String(method || '').toUpperCase();
+  const cleanPath = String(recordedPath || '').split('?')[0];
+
+  // All api:: content types, keyed by uid
+  const apiContentTypes = Object.values(strapi.contentTypes || {}).filter(
+    ct => ct.uid && ct.uid.startsWith('api::')
+  );
+
+  // Build a map: pluralName -> contentType (for fallback matching)
+  const byPluralName = {};
+  apiContentTypes.forEach(ct => {
+    const plural = ct.info && ct.info.pluralName;
+    if (plural) byPluralName[plural] = ct;
+  });
+
+  // Collect all API routes from strapi.apis, annotated with their content type uid
+  const allRoutes = [];
+  try {
+    Object.values(strapi.apis || {}).forEach(api => {
+      Object.values(api.routes || {}).forEach(router => {
+        (router.routes || []).forEach(r => allRoutes.push(r));
+      });
+    });
+  } catch {}
+
+  // Try to match method + path against a known Strapi route pattern
+  let matched = null;
+  for (const route of allRoutes) {
+    if (String(route.method || '').toUpperCase() !== upperMethod) continue;
+    const routePath = route.path || '';
+    if (!routePath) continue;
+    if (matchRoutePattern(routePath, cleanPath)) {
+      matched = { routePath, handler: route.handler || '' };
+      break;
+    }
+  }
+
+  if (matched) {
+    // Derive uid + action from handler string, e.g. "api::cms-page.cms-page.find"
+    const handler = matched.handler;
+    let contentTypeUid = '';
+    let controllerAction = handler;
+
+    if (handler && handler.startsWith('api::')) {
+      // handler format: "api::<singularName>.<singularName>.<action>"
+      const dotParts = handler.split('.');
+      // uid = first two dot-parts joined: "api::<name>.<name>"
+      if (dotParts.length >= 2) {
+        const candidate = dotParts.slice(0, 2).join('.');
+        // Verify it exists in strapi.contentTypes
+        if (strapi.contentTypes[candidate]) {
+          contentTypeUid = candidate;
+        } else {
+          // Try looking up by matching singularName from the handler
+          const singularName = dotParts[0].replace('api::', '');
+          const found = apiContentTypes.find(
+            ct => ct.info && (ct.info.singularName === singularName || ct.uid === candidate)
+          );
+          if (found) contentTypeUid = found.uid;
+        }
+      }
+    }
+
+    return {
+      contentTypeUid,
+      controllerAction,
+      pathPattern: matched.routePath,
+    };
+  }
+
+  // Fallback: match by /api/<pluralName> prefix in the recorded path
+  for (const ct of apiContentTypes) {
+    const plural = ct.info && ct.info.pluralName;
+    if (!plural) continue;
+    const apiBase = `/api/${plural}`;
+    if (cleanPath !== apiBase && !cleanPath.startsWith(apiBase + '/')) continue;
+
+    const routePattern = convertPathToPattern(cleanPath);
+    const suffix = cleanPath.slice(apiBase.length);
+    const hasId = suffix.startsWith('/') && suffix.length > 1;
+    // Extra segment after :id (e.g. /publish) becomes part of the action name
+    const extraSegment = hasId ? suffix.replace(/^\/[^/]+/, '').replace(/^\//, '') : '';
+
+    const actionMap = {
+      GET: hasId ? 'findOne' : 'find',
+      POST: extraSegment ? extraSegment : 'create',
+      PUT: 'update',
+      PATCH: 'update',
+      DELETE: 'delete',
+    };
+    const action = actionMap[upperMethod] || 'custom';
+
+    return {
+      contentTypeUid: ct.uid,
+      controllerAction: `${ct.uid}.${action}`,
+      pathPattern: routePattern,
+    };
+  }
+
+  return { contentTypeUid: '', controllerAction: '', pathPattern: convertPathToPattern(cleanPath) };
+}
+
 module.exports = ({ strapi }) => {
   let enabled = false;
   let filters = JSON.parse(JSON.stringify(DEFAULT_FILTERS));
@@ -132,18 +252,21 @@ module.exports = ({ strapi }) => {
 
     async suggestions() {
       const rows = await this.list();
-      return rows.map((entry) => ({
-        ...entry,
-        key: entry.recordKey,
-        displayName: entry.method + ' ' + entry.path,
-        type: entry.matched ? 'extended' : 'standard',
-        pathPattern: entry.path,
-        urlParts: entry.urlParts || null,
-        queryParamsJson: entry.queryParamsJson || {},
-        recordedRequestRaw: { method: entry.method, path: entry.path, url: entry.exampleUrl || null, query: entry.exampleQuery || {}, body: entry.exampleBody || null, status: entry.lastStatus != null ? entry.lastStatus : null },
-        recordedRequestParsed: { uri: entry.urlParts || null, queryParams: entry.queryParamsJson || {}, body: entry.exampleBody || null, requestRules: entry.suggestedRequestRules || {} },
-        requestRules: entry.suggestedRequestRules || {}
-      }));
+      return rows.map((entry) => {
+        const routePattern = convertPathToPattern(entry.path || '');
+        return {
+          ...entry,
+          key: entry.recordKey,
+          displayName: entry.method + ' ' + routePattern,
+          type: entry.matched ? 'extended' : 'standard',
+          pathPattern: routePattern,
+          urlParts: entry.urlParts || null,
+          queryParamsJson: entry.queryParamsJson || {},
+          recordedRequestRaw: { method: entry.method, path: entry.path, url: entry.exampleUrl || null, query: entry.exampleQuery || {}, body: entry.exampleBody || null, status: entry.lastStatus != null ? entry.lastStatus : null },
+          recordedRequestParsed: { uri: entry.urlParts || null, queryParams: entry.queryParamsJson || {}, body: entry.exampleBody || null, requestRules: entry.suggestedRequestRules || {} },
+          requestRules: entry.suggestedRequestRules || {}
+        };
+      });
     },
 
     toResourceForm(entry) {
@@ -168,10 +291,17 @@ module.exports = ({ strapi }) => {
       const baseRules = entry.suggestedRequestRules || {};
       const count = entry.count || 1;
 
+      // ── Infer content type binding from the recorded path + method ──────────
+      const inferredBinding = inferStrapiBinding(strapi, entry.method || 'GET', entry.path || '');
+
+      // ── Convert raw recorded path to a route pattern (replace IDs with :id) ─
+      const routePattern = inferredBinding.pathPattern || convertPathToPattern(entry.path || '');
+      const routeName = (entry.method || 'get').toLowerCase() + '.' + routePattern.replace(/\//g, '.').replace(/[:{}]/g, '').replace(/\.+/g, '.').replace(/^\./, '') || 'root';
+
       return {
         // Identity
         key: entry.recordKey,
-        displayName: entry.method + ' ' + entry.path,
+        displayName: entry.method + ' ' + routePattern,
         description: [
           `Suggested from recorder (${count} hit${count > 1 ? 's' : ''})`,
           entry.exampleUrl ? `Example URL: ${entry.exampleUrl}` : null,
@@ -182,15 +312,15 @@ module.exports = ({ strapi }) => {
         type: entry.matched ? 'extended' : 'standard',
         method: entry.method || 'GET',
 
-        // Routing
-        pathPattern: entry.path || '',
+        // Routing — use matched route pattern, not the raw recorded path
+        pathPattern: routePattern,
         aliasPath: '',
-        'route-name': (entry.method || 'get').toLowerCase() + '.' + (entry.path || '').replace(/\//g, '.').replace(/[:{}]/g, '').replace(/\.+/g, '.').replace(/^\./, '') || 'root',
+        'route-name': routeName,
 
-        // Strapi binding (recorder has no controller info — left for user to fill)
-        contentTypeUid: '',
-        'content-type-uid': '',
-        controllerAction: '',
+        // Strapi binding — inferred from route matching
+        contentTypeUid: inferredBinding.contentTypeUid || '',
+        'content-type-uid': inferredBinding.contentTypeUid || '',
+        controllerAction: inferredBinding.controllerAction || '',
 
         // Defaults
         domain: null,
