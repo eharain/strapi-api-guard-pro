@@ -49,6 +49,11 @@
     "matchKey": {
       "type": "string",
       "default": "x-app-name"
+    },
+    "blockDirectAccess": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, blocks direct /api/* calls for resources in this domain. Clients must use /{domainKey}/{roleKey}/{resourceKey} instead."
     }
   }
 }

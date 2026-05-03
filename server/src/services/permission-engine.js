@@ -20,14 +20,14 @@ const cache = new Map();
 let cacheTTL = 30000;
 
 module.exports = ({ strapi }) => ({
-  async can({ user, action, resourceUid, entity = null, context = {} }) {
+  async can({ user, action, resourceUid, resourceKey, entity = null, context = {} }) {
     const config = strapi.config.get('plugin::api-guard-pro');
     const denyByDefault = config.denyByDefault !== false;
     cacheTTL = config.cacheTTL || 30000;
     
     if (!user) return denyByDefault ? false : true;
     
-    const cacheKey = `${user.id}:${action}:${resourceUid}`;
+    const cacheKey = `${user.id}:${action}:${resourceKey || resourceUid}`;
     if (cache.has(cacheKey)) {
       const cached = cache.get(cacheKey);
       if (Date.now() - cached.timestamp < cacheTTL) {
@@ -70,8 +70,12 @@ module.exports = ({ strapi }) => ({
         // Domain filtering
         if (runtime.activeDomain && role.domain?.key && role.domain.key !== runtime.activeDomain) continue;
         
-        // Resource UID matching
-        if (resourceUid && policy.resource?.uid && policy.resource.uid !== resourceUid) continue;
+        // Resource matching — prefer resourceKey, fall back to contentTypeUid
+        if (resourceKey) {
+          if (policy.resource?.key && policy.resource.key !== resourceKey) continue;
+        } else if (resourceUid) {
+          if (policy.resource?.contentTypeUid && policy.resource.contentTypeUid !== resourceUid) continue;
+        }
         
         // Action matching
         if (!actionMatches(action, policy.actions)) continue;

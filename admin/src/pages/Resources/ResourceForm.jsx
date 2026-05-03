@@ -128,6 +128,11 @@ function ResourceForm({ formData, onChange, domains, resources, strapiTypes, edi
     const currentCt = formData.contentTypeUid ? allContentTypes.get(formData.contentTypeUid) : null;
     const currentAttributes = currentCt?.attributes || [];
 
+    const selectedDomain = domains.find(d => String(d.id) === String(formData.domain));
+    const canonicalUrl = selectedDomain?.key && formData.key
+        ? `/${selectedDomain.key}/<roleKey>/${formData.key}`
+        : null;
+
     const rr = formData.requestRules || {};
     const respR = formData.responseRules || {};
 
@@ -230,6 +235,15 @@ function ResourceForm({ formData, onChange, domains, resources, strapiTypes, edi
                         )}
                     </Flex>
 
+                    {canonicalUrl && (
+                        <Box paddingBottom={3}>
+                            <Typography variant="pi" textColor="neutral500" style={{ display: 'block', marginBottom: 4 }}>
+                                Canonical URL <Typography variant="pi" textColor="neutral400">(replace &lt;roleKey&gt; with the app role key)</Typography>
+                            </Typography>
+                            <CodeBlock>{`${String(formData.method || 'GET')} ${canonicalUrl}`}</CodeBlock>
+                        </Box>
+                    )}
+
                     <SectionLabel text="Strapi Binding" hint="content type and controller action this route maps to" />
                     <Flex gap={4} wrap="wrap" paddingBottom={3}>
                         <Box style={{ flex: '1 1 280px' }}>
@@ -288,6 +302,7 @@ function ResourceForm({ formData, onChange, domains, resources, strapiTypes, edi
                         Basic Access Control:
                         <Switch label="Public (no auth required)" selected={formData.isPublic === true} onChange={() => set({ isPublic: !formData.isPublic })} />
                         <Switch label="Active" selected={formData.isActive !== false} onChange={() => set({ isActive: !formData.isActive })} />
+                        <Switch label="Block legacy path" selected={formData.blockLegacyPath === true} onChange={() => set({ blockLegacyPath: !formData.blockLegacyPath })} />
                     </Flex>
                 </Box>
             )}

@@ -7,14 +7,14 @@ export const ensureLeadingSlash = (value = '') => {
 export const getEmptyForm = (tab) => {
     switch (tab) {
         case 'domains':
-            return { key: '', name: '', description: '', isActive: true, matchMode: 'header', matchKey: 'x-app-name', strapiRoleType: 'authenticated' };
+            return { key: '', name: '', description: '', isActive: true, matchMode: 'header', matchKey: 'x-app-name', strapiRoleType: 'authenticated', blockDirectAccess: false };
         case 'resources':
             return {
                 key: '', 'route-name': '', displayName: '', description: '', type: 'standard', method: 'GET',
                 pathPattern: '', aliasPath: '', contentTypeUid: '', 'content-type-uid': '', controllerAction: '',
                 domain: null, parentResource: null, isPublic: false, isActive: true, effect: 'allow',
                 requestRules: {}, responseRules: {}, matchCriteria: {}, requestMutation: {}, responseMutation: {},
-                recordedRequestRaw: {}, recordedRequestParsed: {}
+                recordedRequestRaw: {}, recordedRequestParsed: {}, blockLegacyPath: false
             };
         case 'roles':
             return { key: '', name: '', level: 'staff', description: '', isActive: true, domain: null };

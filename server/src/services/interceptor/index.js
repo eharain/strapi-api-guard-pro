@@ -21,8 +21,39 @@ module.exports = ({ strapi }) => ({
     const enforcementMode = String(config.enforcementMode || 'enforce');
 
     let matchedResource = null;
+    let matchedViaCanonical = false;
+
+    // --- Canonical URL detection: /{domainKey}/{roleKey}/{resourceKey}[/...] ---
+    const SYSTEM_PREFIXES = ['/api/', '/admin/', '/_health', '/documentation', '/uploads',
+      '/content-manager', '/i18n', '/users-permissions', '/api-guard-pro'];
+    const isSystemPath = SYSTEM_PREFIXES.some(p => path.startsWith(p));
+
+    if (!isSystemPath) {
+      const segments = path.split('/').filter(Boolean);
+      if (segments.length >= 3) {
+        const [domainKey, roleKey, resourceKey, ...rest] = segments;
+        const candidate = resources.find(r =>
+          r.key === resourceKey &&
+          r.domain?.key === domainKey &&
+          String(r.method).toUpperCase() === String(method).toUpperCase()
+        );
+        if (candidate) {
+          matchedResource = candidate;
+          matchedViaCanonical = true;
+          // Rewrite ctx.path so koa-router dispatches to the real Strapi endpoint.
+          // Use the resource's pathPattern as the base and append any extra segments (e.g. :id values).
+          const basePath = candidate.pathPattern.replace(/:[^/]+/g, () => rest.shift() || '');
+          const remaining = rest.length > 0 ? `/${rest.join('/')}` : '';
+          const rewritten = basePath + remaining;
+          ctx.path = rewritten;
+          ctx.url = rewritten + (ctx.url.includes('?') ? `?${ctx.url.split('?')[1]}` : '');
+          strapi.log.debug(`[api-guard-pro] Canonical URL /${domainKey}/${roleKey}/${resourceKey} → ${rewritten}`);
+        }
+      }
+    }
 
     for (const resource of resources) {
+      if (matchedResource) break;
       if (String(resource.method).toUpperCase() !== String(method).toUpperCase()) continue;
 
       if (resource.pathPattern) {
@@ -40,6 +71,13 @@ module.exports = ({ strapi }) => ({
           break;
         }
       }
+    }
+
+    // blockLegacyPath: reject if resource requires canonical URL
+    if (!matchedViaCanonical && matchedResource?.blockLegacyPath) {
+      const domainKey = matchedResource.domain?.key || '<domain>';
+      const canonicalHint = `/${domainKey}/<roleKey>/${matchedResource.key}`;
+      return ctx.forbidden(`Direct access to this resource is disabled. Use the canonical URL: ${canonicalHint}`);
     }
 
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
@@ -90,10 +128,20 @@ module.exports = ({ strapi }) => ({
     const contextResolver = strapi.service('plugin::api-guard-pro.context-resolver');
     const context = await contextResolver.resolve(ctx);
 
+    // blockDirectAccess: domain-level legacy path blocking
+    if (!matchedViaCanonical && context.domain?.blockDirectAccess) {
+      const canonicalHint = `/${context.domain.key}/<roleKey>/${matchedResource.key}`;
+      if (shouldRecord) {
+        await recorder.record({ method, path, url: rawUrl, query, body: ctx.request?.body, matched: true, status: 403 });
+      }
+      return ctx.forbidden(`Direct /api/* access is disabled for domain '${context.domain.key}'. Use the canonical URL: ${canonicalHint}`);
+    }
+
     const permissionEngine = strapi.service('plugin::api-guard-pro.permission-engine');
     const allowed = await permissionEngine.can({
       user: context.user,
       action: method,
+      resourceKey: matchedResource.key,
       resourceUid: matchedResource.contentTypeUid,
       context
     });

@@ -85,8 +85,18 @@ module.exports = ({ strapi }) => ({
       return ctx.badRequest('Invalid entity');
     }
 
+    const POPULATE = {
+      domains:   {},
+      resources: { domain: true, parentResource: true },
+      roles:     { domain: true },
+      policies:  { resource: true },
+      grants:    { role: { populate: { domain: true } }, policy: { populate: { resource: true } } },
+      groups:    { domain: true, parentGroup: true },
+    };
+
     const records = await strapi.db.query(modelUid).findMany({
-      orderBy: { id: 'asc' }
+      orderBy: { id: 'asc' },
+      populate: POPULATE[entity] || {}
     });
 
     ctx.send({ data: records || [] });
@@ -285,6 +295,79 @@ module.exports = ({ strapi }) => ({
       .filter((ct) => ct.standard.length > 0 || ct.extended.length > 0);
 
     ctx.send({ data: contentTypes });
+  },
+
+  async inspect(ctx) {
+    const domains = await strapi.db.query(MODEL_UIDS.domains).findMany({ where: { isActive: true } });
+    const resources = await strapi.db.query(MODEL_UIDS.resources).findMany({
+      where: { isActive: true },
+      populate: { domain: true }
+    });
+    const roles = await strapi.db.query(MODEL_UIDS.roles).findMany({
+      where: { isActive: true },
+      populate: { domain: true }
+    });
+    const grants = await strapi.db.query(MODEL_UIDS.grants).findMany({
+      populate: {
+        role: { populate: { domain: true } },
+        policy: { populate: { resource: true } }
+      }
+    });
+
+    // Build canonical URL map: for each resource with a domain, list all roles in that domain
+    const canonicalMap = resources
+      .filter(r => r.domain?.key && r.key)
+      .map(r => {
+        const domainRoles = roles.filter(role => role.domain?.key === r.domain.key);
+        return {
+          resourceKey: r.key,
+          displayName: r.displayName,
+          method: r.method,
+          pathPattern: r.pathPattern,
+          domain: r.domain.key,
+          blockLegacyPath: r.blockLegacyPath || false,
+          canonicalUrls: domainRoles.map(role => ({
+            role: role.key,
+            url: `/${r.domain.key}/${role.key}/${r.key}`
+          }))
+        };
+      });
+
+    // Domain summary
+    const domainSummary = domains.map(d => ({
+      key: d.key,
+      name: d.name,
+      blockDirectAccess: d.blockDirectAccess || false,
+      matchMode: d.matchMode,
+      matchKey: d.matchKey,
+      resourceCount: resources.filter(r => r.domain?.key === d.key).length,
+      roleCount: roles.filter(r => r.domain?.key === d.key).length
+    }));
+
+    // Grant summary: role → policy → resource chain
+    const grantChains = grants.map(g => ({
+      grantId: g.id,
+      role: g.role?.key,
+      roleDomain: g.role?.domain?.key,
+      policy: g.policy?.key,
+      policyEffect: g.policy?.effect,
+      resource: g.policy?.resource?.key,
+      actions: g.policy?.actions
+    }));
+
+    ctx.send({
+      data: {
+        domains: domainSummary,
+        canonicalMap,
+        grantChains,
+        totals: {
+          domains: domains.length,
+          resources: resources.length,
+          roles: roles.length,
+          grants: grants.length
+        }
+      }
+    });
   },
 
   async clearCache(ctx) {

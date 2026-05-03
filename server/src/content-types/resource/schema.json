@@ -125,6 +125,11 @@
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::api-guard-pro.resource"
+    },
+    "blockLegacyPath": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, blocks direct calls to pathPattern. Clients must use the canonical URL /{domain}/{role}/{resourceKey}."
     }
   }
 }

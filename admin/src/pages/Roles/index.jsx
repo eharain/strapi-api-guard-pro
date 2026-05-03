@@ -1,11 +1,9 @@
 import React from 'react';
-import {
-    Box, Typography, Button, Flex,
-    TextInput, Textarea, SingleSelect, SingleSelectOption, Switch,
-} from '@strapi/design-system';
+import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
+import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
 
 const LEVEL_OPTIONS = ['staff', 'manager', 'admin', 'super-admin'];
 
@@ -13,20 +11,17 @@ function RoleForm({ formData, onChange, domains }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
-            <Box paddingBottom={4}><TextInput label="Key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
-            <Box paddingBottom={4}><TextInput label="Name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
-            <Box paddingBottom={4}><Textarea label="Description" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
-            <Box paddingBottom={4}><Switch label="Active" selected={formData.isActive !== false} onChange={() => set({ isActive: !formData.isActive })} /></Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Level" value={formData.level || 'staff'} onChange={v => set({ level: v })}>
-                    {LEVEL_OPTIONS.map(opt => <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}><FormInput label="Key" id="rol_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
+            <Box paddingBottom={3}><FormInput label="Name" id="rol_name" name="name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
+            <Box paddingBottom={3}><FormTextarea label="Description" id="rol_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
+            <Box paddingBottom={3}><FormSwitch label="Active" name="rol_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
+            <Box paddingBottom={3}>
+                <FormSelect label="Level" id="rol_level" value={formData.level || 'staff'} onChange={v => set({ level: v })}
+                    options={LEVEL_OPTIONS.map(o => ({ value: o, label: o }))} />
             </Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}>
-                    <SingleSelectOption value="">None</SingleSelectOption>
-                    {domains.map(d => <SingleSelectOption key={d.id} value={String(d.id)}>{d.key || d.name || `#${d.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}>
+                <FormSelect label="Domain" id="rol_domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}
+                    options={[{ value: '', label: 'None' }, ...domains.map(d => ({ value: String(d.id), label: d.key || d.name || `#${d.id}` }))]} />
             </Box>
         </>
     );

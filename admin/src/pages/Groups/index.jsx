@@ -1,32 +1,26 @@
 import React from 'react';
-import {
-    Box, Typography, Button, Flex,
-    TextInput, Textarea, SingleSelect, SingleSelectOption, Switch,
-} from '@strapi/design-system';
+import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
+import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
 
 function GroupForm({ formData, onChange, domains, groups, editingRecord }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
-            <Box paddingBottom={4}><TextInput label="Key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
-            <Box paddingBottom={4}><TextInput label="Name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
-            <Box paddingBottom={4}><Textarea label="Description" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
-            <Box paddingBottom={4}><Switch label="Active" selected={formData.isActive !== false} onChange={() => set({ isActive: !formData.isActive })} /></Box>
-            <Box paddingBottom={4}><Switch label="Is Bundle" selected={formData.isBundle === true} onChange={() => set({ isBundle: !formData.isBundle })} /></Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}>
-                    <SingleSelectOption value="">None</SingleSelectOption>
-                    {domains.map(d => <SingleSelectOption key={d.id} value={String(d.id)}>{d.key || d.name || `#${d.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}><FormInput label="Key" id="grp_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
+            <Box paddingBottom={3}><FormInput label="Name" id="grp_name" name="name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
+            <Box paddingBottom={3}><FormTextarea label="Description" id="grp_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
+            <Box paddingBottom={3}><FormSwitch label="Active" name="grp_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
+            <Box paddingBottom={3}><FormSwitch label="Is Bundle" name="grp_isBundle" checked={formData.isBundle === true} onChange={v => set({ isBundle: v })} /></Box>
+            <Box paddingBottom={3}>
+                <FormSelect label="Domain" id="grp_domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}
+                    options={[{ value: '', label: 'None' }, ...domains.map(d => ({ value: String(d.id), label: d.key || d.name || `#${d.id}` }))]} />
             </Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Parent Group" value={formData.parentGroup ? String(formData.parentGroup) : ''} onChange={v => set({ parentGroup: v || null })}>
-                    <SingleSelectOption value="">None</SingleSelectOption>
-                    {groups.filter(g => g.id !== editingRecord?.id).map(g => <SingleSelectOption key={g.id} value={String(g.id)}>{g.key || g.name || `#${g.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}>
+                <FormSelect label="Parent Group" id="grp_parent" value={formData.parentGroup ? String(formData.parentGroup) : ''} onChange={v => set({ parentGroup: v || null })}
+                    options={[{ value: '', label: 'None' }, ...groups.filter(g => g.id !== editingRecord?.id).map(g => ({ value: String(g.id), label: g.key || g.name || `#${g.id}` }))]} />
             </Box>
         </>
     );

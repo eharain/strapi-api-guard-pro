@@ -25,10 +25,22 @@ module.exports = ({ strapi }) => ({
     
     const elevatedHeader = normalizeHeader(headers[headerElevatedKey]).toLowerCase();
     
-    // Get user's permission roles (supports both naming conventions)
+    // Strapi users-permissions roles (from JWT payload) — kept for back-compat
     const roles = user?.permissionRoles || user?.permission_roles || [];
     const domainAdmin = roles.some(role => role?.level === 'admin' && role?.domain?.key === activeDomain);
     const superAdmin = roles.some(role => role?.level === 'super-admin');
+
+    // Guard roles: query from DB — these are NOT present in the JWT payload
+    const guardRoles = user?.id
+      ? await strapi.db.query('plugin::api-guard-pro.role').findMany({
+          where: {
+            users: { id: user.id },
+            isActive: true,
+            ...(activeDomain ? { domain: { key: activeDomain } } : {})
+          },
+          populate: { domain: true }
+        })
+      : [];
     
     const domain = activeDomain
       ? await strapi.db.query('plugin::api-guard-pro.domain').findOne({
@@ -42,6 +54,7 @@ module.exports = ({ strapi }) => ({
       domain,
       isElevated: (TRUTHY_VALUES.has(elevatedHeader) && (domainAdmin || superAdmin)) || superAdmin,
       roles,
+      guardRoles,
       teamIds: user?.teamIds || [],
     };
   }

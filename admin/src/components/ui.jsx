@@ -132,7 +132,7 @@ export function FormTextarea({ label, hint, required, value, onChange, placehold
 // ---------------------------------------------------------------------------
 // FormSelect — <select> with label + hint
 // ---------------------------------------------------------------------------
-export function FormSelect({ label, hint, required, value, onChange, children, id }) {
+export function FormSelect({ label, hint, required, value, onChange, children, id, options }) {
     return (
         <FormField label={label} hint={hint} required={required} htmlFor={id}>
             <select
@@ -141,9 +141,37 @@ export function FormSelect({ label, hint, required, value, onChange, children, i
                 onChange={e => onChange(e.target.value)}
                 style={{ ...inputStyle, cursor: 'pointer' }}
             >
-                {children}
+                {/* Support either JSX children or an options array */}
+                {options
+                    ? options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                    : children}
             </select>
         </FormField>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// FormSwitch — checkbox + visible label (works in any container)
+// ---------------------------------------------------------------------------
+export function FormSwitch({ label, name, checked, onChange, hint }) {
+    const id = name || label;
+    return (
+        <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                    type="checkbox"
+                    id={id}
+                    name={id}
+                    checked={!!checked}
+                    onChange={e => onChange(e.target.checked)}
+                    style={{ width: 15, height: 15, cursor: 'pointer', accentColor: tokens.primary, flexShrink: 0 }}
+                />
+                <label htmlFor={id} style={{ ...labelStyle, margin: 0, cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                    {label}
+                </label>
+            </div>
+            {hint && <span style={{ ...hintStyle, marginLeft: 23 }}>{hint}</span>}
+        </div>
     );
 }
 

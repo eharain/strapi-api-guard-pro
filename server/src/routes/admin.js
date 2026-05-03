@@ -87,6 +87,12 @@ module.exports = [
   },
   {
     method: 'GET',
+    path: '/inspect',
+    handler: 'admin.inspect',
+    config: { auth: false }
+  },
+  {
+    method: 'GET',
     path: '/clear-cache',
     handler: 'admin.clearCache',
     config: { auth: false }

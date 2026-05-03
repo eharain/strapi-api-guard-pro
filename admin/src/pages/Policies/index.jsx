@@ -1,11 +1,9 @@
 import React from 'react';
-import {
-    Box, Typography, Button, Flex,
-    TextInput, Textarea, SingleSelect, SingleSelectOption, Switch,
-} from '@strapi/design-system';
+import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
+import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
 
 const EFFECT_OPTIONS = ['allow', 'deny'];
 
@@ -13,24 +11,23 @@ function PolicyForm({ formData, onChange, resources }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
-            <Box paddingBottom={4}><TextInput label="Key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
-            <Box paddingBottom={4}><TextInput label="Name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
-            <Box paddingBottom={4}><Textarea label="Description" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
-            <Box paddingBottom={4}><Switch label="Active" selected={formData.isActive !== false} onChange={() => set({ isActive: !formData.isActive })} /></Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Effect" value={formData.effect || 'allow'} onChange={v => set({ effect: v })}>
-                    {EFFECT_OPTIONS.map(opt => <SingleSelectOption key={opt} value={opt}>{opt}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}><FormInput label="Key" id="pol_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
+            <Box paddingBottom={3}><FormInput label="Name" id="pol_name" name="name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
+            <Box paddingBottom={3}><FormTextarea label="Description" id="pol_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
+            <Box paddingBottom={3}><FormSwitch label="Active" name="pol_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
+            <Box paddingBottom={3}>
+                <FormSelect label="Effect" id="pol_effect" value={formData.effect || 'allow'} onChange={v => set({ effect: v })}
+                    options={EFFECT_OPTIONS.map(o => ({ value: o, label: o }))} />
             </Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Resource" value={formData.resource ? String(formData.resource) : ''} onChange={v => set({ resource: v || null })}>
-                    <SingleSelectOption value="">None</SingleSelectOption>
-                    {resources.map(r => <SingleSelectOption key={r.id} value={String(r.id)}>{r.key || r.displayName || `#${r.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}>
+                <FormSelect label="Resource" id="pol_resource" value={formData.resource ? String(formData.resource) : ''} onChange={v => set({ resource: v || null })}
+                    options={[{ value: '', label: 'None' }, ...resources.map(r => ({ value: String(r.id), label: r.key || r.displayName || `#${r.id}` }))]} />
             </Box>
-            <Box paddingBottom={4}>
-                <TextInput
+            <Box paddingBottom={3}>
+                <FormInput
                     label="Actions (comma-separated)"
+                    id="pol_actions"
+                    name="actions"
                     value={Array.isArray(formData.actions) ? formData.actions.join(', ') : 'read'}
                     onChange={e => set({ actions: e.target.value.split(',').map(s => s.trim()) })}
                     hint="e.g., read, write, delete"

@@ -1,30 +1,24 @@
 import React from 'react';
-import {
-    Box, Typography, Button, Flex,
-    TextInput, SingleSelect, SingleSelectOption, Switch,
-} from '@strapi/design-system';
+import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
+import { FormInput, FormSelect, FormSwitch } from '../../components/ui.jsx';
 
 function GrantForm({ formData, onChange, roles, policies }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
-            <Box paddingBottom={4}><TextInput label="Key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required /></Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Role" value={formData.role ? String(formData.role) : ''} onChange={v => set({ role: v || null })} required>
-                    <SingleSelectOption value="">Select a role</SingleSelectOption>
-                    {roles.map(r => <SingleSelectOption key={r.id} value={String(r.id)}>{r.key || r.name || `#${r.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}><FormInput label="Key" id="gr_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required /></Box>
+            <Box paddingBottom={3}>
+                <FormSelect label="Role" id="gr_role" value={formData.role ? String(formData.role) : ''} onChange={v => set({ role: v || null })} required
+                    options={[{ value: '', label: 'Select a role' }, ...roles.map(r => ({ value: String(r.id), label: r.key || r.name || `#${r.id}` }))]} />
             </Box>
-            <Box paddingBottom={4}>
-                <SingleSelect label="Policy" value={formData.policy ? String(formData.policy) : ''} onChange={v => set({ policy: v || null })} required>
-                    <SingleSelectOption value="">Select a policy</SingleSelectOption>
-                    {policies.map(p => <SingleSelectOption key={p.id} value={String(p.id)}>{p.key || p.name || `#${p.id}`}</SingleSelectOption>)}
-                </SingleSelect>
+            <Box paddingBottom={3}>
+                <FormSelect label="Policy" id="gr_policy" value={formData.policy ? String(formData.policy) : ''} onChange={v => set({ policy: v || null })} required
+                    options={[{ value: '', label: 'Select a policy' }, ...policies.map(p => ({ value: String(p.id), label: p.key || p.name || `#${p.id}` }))]} />
             </Box>
-            <Box paddingBottom={4}><Switch label="Active" selected={formData.isActive !== false} onChange={() => set({ isActive: !formData.isActive })} /></Box>
+            <Box paddingBottom={3}><FormSwitch label="Active" name="gr_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
         </>
     );
 }

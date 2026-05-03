@@ -7,23 +7,25 @@
     "name": "Ejaz Hussain Arain",
     "email": "eharain@yahoo.com"
   },
-  "main": "strapi-server.js",
+  "main": "./dist/server/index.js",
   "exports": {
     ".": {
-      "require": "./strapi-server.js",
-      "default": "./strapi-server.js"
+      "source": "./server/src/index.js",
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
     },
     "./strapi-admin": {
       "source": "./admin/src/index.js",
-      "import": "./admin/src/index.js",
-      "require": "./strapi-admin.js",
-      "default": "./strapi-admin.js"
+      "import": "./dist/admin/index.mjs",
+      "require": "./dist/admin/index.js",
+      "default": "./dist/admin/index.js"
     },
     "./strapi-server": {
       "source": "./server/src/index.js",
-      "import": "./server/src/index.js",
-      "require": "./strapi-server.js",
-      "default": "./strapi-server.js"
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -38,9 +40,12 @@
   },
   "peerDependencies": {
     "@strapi/strapi": "^5.0.0",
+    "@strapi/design-system": "^2.0.0",
+    "@strapi/icons": "^2.0.0",
     "react": "^17.0.0 || ^18.0.0",
     "react-dom": "^17.0.0 || ^18.0.0",
-    "react-router-dom": "^6.0.0"
+    "react-router-dom": "^6.0.0",
+    "styled-components": "^6.0.0"
   },
   "devDependencies": {
     "@strapi/sdk-plugin": "^5.0.0",
