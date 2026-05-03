@@ -1,375 +1,218 @@
-﻿import React, { useState } from 'react';
-import { Box, Typography, Flex } from '@strapi/design-system';
+﻿import React, { useState, useCallback } from "react";
+import { Box, Flex } from "@strapi/design-system";
+import { tokens, smallInputStyle, ghostButtonStyle, removeButtonStyle } from "../ui.jsx";
 
 const OPERATORS = [
-    { value: '$eq', label: '= equals' },
-    { value: '$ne', label: '- not equals' },
-    { value: '$lt', label: '< less than' },
-    { value: '$lte', label: '- less or equal' },
-    { value: '$gt', label: '> greater than' },
-    { value: '$gte', label: '- greater or equal' },
-    { value: '$contains', label: '- contains' },
-    { value: '$notContains', label: '- not contains' },
-    { value: '$startsWith', label: '- starts with' },
-    { value: '$endsWith', label: '- ends with' },
-    { value: '$in', label: '- in list' },
-    { value: '$notIn', label: '- not in list' },
-    { value: '$null', label: '- is null' },
-    { value: '$notNull', label: '- is not null' },
-    { value: '$between', label: '- between' },
+    { value: "$eq",          label: "= equals" },
+    { value: "$ne",          label: "!= not equals" },
+    { value: "$lt",          label: "< less than" },
+    { value: "$lte",         label: "<= less or equal" },
+    { value: "$gt",          label: "> greater than" },
+    { value: "$gte",         label: ">= greater or equal" },
+    { value: "$contains",    label: "~ contains" },
+    { value: "$notContains", label: "!~ not contains" },
+    { value: "$startsWith",  label: "^ starts with" },
+    { value: "$endsWith",    label: "$ ends with" },
+    { value: "$in",          label: "in list" },
+    { value: "$notIn",       label: "not in list" },
+    { value: "$null",        label: "is null" },
+    { value: "$notNull",     label: "not null" },
+    { value: "$between",     label: "between" },
 ];
 
-const RELATION_TYPES = ['relation', 'component'];
-const NO_VALUE_OPS = ['$null', '$notNull'];
+const NO_VALUE_OPS = new Set(["$null", "$notNull"]);
+const RELATION_TYPES = new Set(["relation", "component", "media", "dynamiczone"]);
+const MAX_DEPTH = 4;
 
-// -- Deep-set a value in a nested object by dotted path -----------------------
-function deepSet(obj, pathParts, operator, value) {
-    if (pathParts.length === 1) {
-        return { ...obj, [pathParts[0]]: { ...obj?.[pathParts[0]], [operator]: value } };
+let _uid = 1;
+const uid = () => String(_uid++);
+const makeGroup = (logic) => ({ id: uid(), type: "group", logic: logic || "$and", children: [] });
+const makeCondition = () => ({ id: uid(), type: "condition", path: "", operator: "$eq", value: "" });
+
+function buildFilterObject(node) {
+    if (!node) return null;
+    if (node.type === "condition") {
+        if (!node.path) return null;
+        const opVal = NO_VALUE_OPS.has(node.operator) ? true : (node.value || "");
+        const leaf = { [node.operator]: opVal };
+        return node.path.split(".").reduceRight((acc, part) => ({ [part]: acc }), leaf);
     }
-    const [head, ...rest] = pathParts;
-    return { ...obj, [head]: deepSet(obj?.[head] || {}, rest, operator, value) };
+    const children = (node.children || []).map(buildFilterObject).filter(Boolean);
+    if (children.length === 0) return null;
+    if (children.length === 1) return children[0];
+    return { [node.logic]: children };
 }
 
-function deepDelete(obj, pathParts, operator) {
-    if (pathParts.length === 1) {
-        const entry = { ...(obj?.[pathParts[0]] || {}) };
-        delete entry[operator];
-        if (Object.keys(entry).length === 0) {
-            const next = { ...obj };
-            delete next[pathParts[0]];
-            return next;
-        }
-        return { ...obj, [pathParts[0]]: entry };
+function prependPath(node, prefix) {
+    if (node.type === "condition") {
+        return { ...node, path: node.path ? prefix + "." + node.path : prefix };
     }
-    const [head, ...rest] = pathParts;
-    const child = deepDelete(obj?.[head] || {}, rest, operator);
-    if (Object.keys(child).length === 0) {
-        const next = { ...obj };
-        delete next[head];
-        return next;
-    }
-    return { ...obj, [head]: child };
+    return { ...node, children: (node.children || []).map((c) => prependPath(c, prefix)) };
 }
 
-// -- Flatten a Strapi filter object to rows: [{ path[], operator, value }] ----
-function flattenFilters(obj, pathSoFar = []) {
-    const rows = [];
-    if (!obj || typeof obj !== 'object') return rows;
-    Object.entries(obj).forEach(([key, val]) => {
-        if (key.startsWith('$') && typeof val !== 'object') {
-            rows.push({ path: pathSoFar, operator: key, value: val });
-        } else if (key.startsWith('$') && key === '$null' || key === '$notNull') {
-            rows.push({ path: pathSoFar, operator: key, value: val });
-        } else if (key.startsWith('$') && typeof val === 'object') {
-            // e.g. $in: [...]
-            rows.push({ path: pathSoFar, operator: key, value: val });
-        } else if (typeof val === 'object' && !Array.isArray(val)) {
-            // nested: could be { $eq: x } or { nestedField: { $eq: x } }
-            const hasOps = Object.keys(val).some(k => k.startsWith('$'));
-            if (hasOps) {
-                rows.push(...flattenFilters(val, [...pathSoFar, key]));
-            } else {
-                rows.push(...flattenFilters(val, [...pathSoFar, key]));
+function parseFilterObject(obj, depth) {
+    if (!obj || typeof obj !== "object") return makeGroup("$and");
+    const keys = Object.keys(obj);
+    if (keys.length === 1 && (keys[0] === "$and" || keys[0] === "$or")) {
+        const logic = keys[0];
+        const children = (obj[logic] || []).map((c) => parseFilterObject(c, (depth || 0) + 1));
+        return { id: uid(), type: "group", logic, children };
+    }
+    if (keys.length > 1) {
+        const children = keys.map((k) => parseFilterObject({ [k]: obj[k] }, (depth || 0) + 1));
+        return { id: uid(), type: "group", logic: "$and", children };
+    }
+    if (keys.length === 1 && !keys[0].startsWith("$")) {
+        const fieldKey = keys[0];
+        const val = obj[fieldKey];
+        if (val && typeof val === "object" && !Array.isArray(val)) {
+            const subKeys = Object.keys(val);
+            const isLeaf = subKeys.length === 1 && subKeys[0].startsWith("$") && subKeys[0] !== "$and" && subKeys[0] !== "$or";
+            if (isLeaf) {
+                const op = subKeys[0];
+                const rawVal = val[op];
+                return { id: uid(), type: "condition", path: fieldKey, operator: op, value: NO_VALUE_OPS.has(op) ? "" : String(rawVal || "") };
             }
-        } else {
-            rows.push({ path: pathSoFar, operator: '$eq', value: val });
+            return prependPath(parseFilterObject(val, depth), fieldKey);
         }
-    });
-    return rows;
+    }
+    return makeGroup("$and");
 }
 
-// -- FieldPathSelector --------------------------------------------------------
-function FieldPathSelector({ attributes, allTypes, selectedPath, onSelect }) {
-    const [path, setPath] = useState(selectedPath || []);
-    const [segments, setSegments] = useState(() => {
-        // Build segments list: [{attrs}] per level
-        return [attributes];
-    });
-
-    const selectSegment = (levelIdx, attrName, attr) => {
-        const newPath = [...path.slice(0, levelIdx), attrName];
-        const newSegments = segments.slice(0, levelIdx + 1);
-
-        if (RELATION_TYPES.includes(attr.type)) {
+function FieldPathSelector({ attributes, allTypes, value, onChange }) {
+    const [segments, setSegments] = useState([]);
+    const resolveAttrs = (segs) => {
+        let attrs = attributes || [];
+        for (const seg of segs) {
+            const attr = attrs.find((a) => a.name === seg);
+            if (!attr) return [];
             const targetUid = attr.target || attr.component;
-            const targetCt = targetUid ? allTypes.get(targetUid) : null;
-            if (targetCt) {
-                newSegments.push(targetCt.attributes);
+            if (targetUid && allTypes) {
+                attrs = (allTypes.get(targetUid) || {}).attributes || [];
+            } else {
+                return [];
             }
         }
-
-        setPath(newPath);
-        setSegments(newSegments);
-        onSelect(newPath, attr);
+        return attrs;
     };
-
+    const currentAttrs = resolveAttrs(segments);
+    const handleSelect = (attrName, attr) => {
+        if (attr && RELATION_TYPES.has(attr.type)) {
+            setSegments([...segments, attrName]);
+        } else {
+            const path = segments.length > 0 ? segments.join(".") + "." + attrName : attrName;
+            onChange(path);
+            setSegments([]);
+        }
+    };
     return (
-        <Box style={{ border: '1px solid #e0e0e8', borderRadius: 6, overflow: 'hidden' }}>
-            <Flex style={{ overflowX: 'auto' }}>
-                {segments.map((segAttrs, levelIdx) => (
-                    <Box
-                        key={levelIdx}
-                        style={{
-                            minWidth: 160, borderRight: levelIdx < segments.length - 1 ? '1px solid #e0e0e8' : 'none',
-                            maxHeight: 200, overflowY: 'auto', flexShrink: 0,
-                        }}
-                    >
-                        {levelIdx > 0 && (
-                            <Box style={{ padding: '3px 8px', background: '#f4f4f8', borderBottom: '1px solid #e0e0e8' }}>
-                                <Typography variant="pi" textColor="neutral400" style={{ fontFamily: 'monospace', fontSize: 10 }}>
-                                    - {path[levelIdx - 1]}
-                                </Typography>
-                            </Box>
-                        )}
-                        {segAttrs.filter(a => a.name !== 'id').map(attr => {
-                            const isSelected = path[levelIdx] === attr.name;
-                            const isRelation = RELATION_TYPES.includes(attr.type);
-                            return (
-                                <div
-                                    key={attr.name}
-                                    onClick={() => selectSegment(levelIdx, attr.name, attr)}
-                                    style={{
-                                        padding: '5px 10px', cursor: 'pointer', fontSize: 12,
-                                        fontFamily: 'monospace',
-                                        background: isSelected ? '#4945ff' : 'transparent',
-                                        color: isSelected ? '#fff' : '#333',
-                                        borderBottom: '1px solid #f0f0f4',
-                                        display: 'flex', alignItems: 'center', gap: 6,
-                                    }}
-                                >
-                                    <span style={{ flex: 1 }}>{attr.name}</span>
-                                    {isRelation && <span style={{ fontSize: 9, opacity: 0.7 }}>-</span>}
-                                </div>
-                            );
-                        })}
-                    </Box>
-                ))}
-            </Flex>
-        </Box>
-    );
-}
-
-// -- Single filter row --------------------------------------------------------
-function FilterRow({ row, idx, attributes, allTypes, onUpdate, onRemove }) {
-    const [editingPath, setEditingPath] = useState(false);
-    const noVal = NO_VALUE_OPS.includes(row.operator);
-
-    const parameterized = typeof row.value === 'string' && (
-        row.value.startsWith(':') || row.value.startsWith('$auth') || row.value.startsWith('$user')
-    );
-
-    const pathLabel = row.path.length > 0 ? row.path.join(' - ') : '- pick field -';
-
-    return (
-        <Box style={{ border: '1px solid #e0e0e8', borderRadius: 6, padding: 10, marginBottom: 8, background: '#fafafa' }}>
-            <Flex justifyContent="space-between" alignItems="flex-start" gap={2}>
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                    {/* Field path breadcrumb */}
-                    <Flex gap={2} alignItems="center" paddingBottom={1} wrap="wrap">
-                        <Typography variant="pi" textColor="neutral500" style={{ flexShrink: 0 }}>Field:</Typography>
-                        <button
-                            type="button"
-                            onClick={() => setEditingPath(v => !v)}
-                            style={{
-                                fontSize: 12, fontFamily: 'monospace', padding: '2px 8px',
-                                borderRadius: 4, border: '1px solid #4945ff',
-                                background: editingPath ? '#4945ff' : '#fff',
-                                color: editingPath ? '#fff' : '#4945ff', cursor: 'pointer',
-                            }}
-                        >
-                            {pathLabel}
+        <div style={{ position: "relative", minWidth: 150 }}>
+            <input type="text" value={value || ""}
+                onChange={(e) => { onChange(e.target.value); setSegments([]); }}
+                placeholder={segments.length > 0 ? segments.join(".") + ".[field]" : "field.path"}
+                style={{ ...smallInputStyle, width: "100%", fontFamily: tokens.monoFont }} />
+            {currentAttrs.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 999, background: "#fff", border: "1px solid #e0e0e8", borderRadius: tokens.radius, minWidth: 200, maxHeight: 200, overflowY: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
+                    {segments.length > 0 && (
+                        <button type="button" onClick={() => setSegments(segments.slice(0, -1))}
+                            style={{ display: "block", width: "100%", textAlign: "left", padding: "5px 10px", fontSize: tokens.fontSm, background: tokens.surfaceBg, border: "none", cursor: "pointer", color: tokens.primary }}>
+                            ← back
                         </button>
-                    </Flex>
-
-                    {editingPath && (
-                        <Box paddingBottom={2}>
-                            <FieldPathSelector
-                                attributes={attributes}
-                                allTypes={allTypes}
-                                selectedPath={row.path}
-                                onSelect={(newPath) => {
-                                    onUpdate({ ...row, path: newPath });
-                                    setEditingPath(false);
-                                }}
-                            />
-                        </Box>
                     )}
-
-                    <Flex gap={2} alignItems="center" wrap="wrap">
-                        {/* Operator */}
-                        <Box>
-                            <label htmlFor={`op-${idx}`} style={{ fontSize: 10, display: 'block', marginBottom: 2, color: '#888' }}>Operator</label>
-                            <select
-                                id={`op-${idx}`}
-                                value={row.operator}
-                                onChange={e => onUpdate({ ...row, operator: e.target.value, value: NO_VALUE_OPS.includes(e.target.value) ? true : row.value })}
-                                style={{ padding: '4px 6px', border: '1px solid #ddd', borderRadius: 4, fontSize: 12 }}
-                            >
-                                {OPERATORS.map(op => (
-                                    <option key={op.value} value={op.value}>{op.label}</option>
-                                ))}
-                            </select>
-                        </Box>
-
-                        {/* Value */}
-                        {!noVal && (
-                            <Box style={{ flex: 1, minWidth: 120 }}>
-                                <Flex gap={1} alignItems="center" style={{ marginBottom: 2 }}>
-                                    <label htmlFor={`val-${idx}`} style={{ fontSize: 10, color: '#888' }}>Value</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (parameterized) {
-                                                onUpdate({ ...row, value: '' });
-                                            } else {
-                                                onUpdate({ ...row, value: ':param' });
-                                            }
-                                        }}
-                                        title={parameterized ? 'Switch to static value' : 'Switch to runtime parameter (:param or $auth.id)'}
-                                        style={{
-                                            fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                                            border: `1px solid ${parameterized ? '#945af2' : '#ddd'}`,
-                                            background: parameterized ? '#945af222' : '#fff',
-                                            color: parameterized ? '#945af2' : '#888', cursor: 'pointer',
-                                        }}
-                                    >
-                                        {parameterized ? '- param' : '- static'}
-                                    </button>
-                                </Flex>
-                                <input
-                                    id={`val-${idx}`}
-                                    type="text"
-                                    value={
-                                        Array.isArray(row.value) ? row.value.join(', ') : String(row.value ?? '')
-                                    }
-                                    placeholder={
-                                        parameterized
-                                            ? ':paramName or $auth.id'
-                                            : row.operator === '$in' ? 'val1, val2, val3' : 'value'
-                                    }
-                                    onChange={e => {
-                                        const raw = e.target.value;
-                                        let parsed = raw;
-                                        if (row.operator === '$in' || row.operator === '$notIn' || row.operator === '$between') {
-                                            parsed = raw.split(',').map(s => s.trim()).filter(Boolean);
-                                        }
-                                        onUpdate({ ...row, value: parsed });
-                                    }}
-                                    style={{
-                                        width: '100%', padding: '4px 8px', borderRadius: 4, fontSize: 12,
-                                        border: `1px solid ${parameterized ? '#945af2' : '#ddd'}`,
-                                        background: parameterized ? '#945af208' : '#fff',
-                                        fontFamily: parameterized ? 'monospace' : 'inherit',
-                                    }}
-                                />
-                                {parameterized && (
-                                    <Typography variant="pi" textColor="neutral400" style={{ fontSize: 10, marginTop: 2 }}>
-                                        Runtime resolved - use <code>:paramName</code> for path/query params, <code>$auth.id</code> for auth context
-                                    </Typography>
-                                )}
-                            </Box>
-                        )}
-                    </Flex>
-                </Box>
-
-                <button
-                    type="button"
-                    onClick={onRemove}
-                    style={{ fontSize: 16, color: '#c5221f', border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}
-                    title="Remove filter"
-                >
-                    -
-                </button>
-            </Flex>
-        </Box>
+                    {currentAttrs.map((attr) => (
+                        <button key={attr.name} type="button" onClick={() => handleSelect(attr.name, attr)}
+                            style={{ display: "block", width: "100%", textAlign: "left", padding: "5px 10px", fontSize: tokens.fontBase, background: "none", border: "none", cursor: "pointer", fontFamily: tokens.monoFont, color: RELATION_TYPES.has(attr.type) ? tokens.primary : "#32324d" }}>
+                            {attr.name}
+                            <span style={{ marginLeft: 6, fontSize: 10, color: "#aaa" }}>{attr.type}{RELATION_TYPES.has(attr.type) ? " →" : ""}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 
-// -- Main FiltersBuilder ------------------------------------------------------
-/**
- * FiltersBuilder
- * Props:
- *   attributes:  Array<{ name, type, target, ... }> - root CT attributes
- *   allTypes:    Map<uid, { uid, displayName, attributes[] }>
- *   value:       Object - requestRules.filters (Strapi filter shape)
- *   onChange:    (newFilters: Object) => void
- */
-export function FiltersBuilder({ attributes = [], allTypes = new Map(), value, onChange }) {
-    const [rows, setRows] = useState(() => flattenFilters(value || {}));
+function FilterCondition({ node, attributes, allTypes, onUpdate, onDelete }) {
+    const noValue = NO_VALUE_OPS.has(node.operator);
+    return (
+        <Flex gap={2} alignItems="center" wrap="wrap" style={{ padding: "4px 0" }}>
+            <div style={{ flex: "2 1 150px", minWidth: 130 }}>
+                <FieldPathSelector attributes={attributes} allTypes={allTypes} value={node.path} onChange={(path) => onUpdate({ ...node, path })} />
+            </div>
+            <select value={node.operator} onChange={(e) => onUpdate({ ...node, operator: e.target.value })}
+                style={{ ...smallInputStyle, flex: "1 1 120px", minWidth: 110 }}>
+                {OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
+            </select>
+            {!noValue && (
+                <input type="text" value={node.value || ""} placeholder="value or $auth.id"
+                    onChange={(e) => onUpdate({ ...node, value: e.target.value })}
+                    style={{ ...smallInputStyle, flex: "2 1 130px", minWidth: 110, fontFamily: tokens.monoFont }} />
+            )}
+            <button type="button" onClick={onDelete} style={{ ...removeButtonStyle, flexShrink: 0 }}>x</button>
+        </Flex>
+    );
+}
 
-    const rebuildAndEmit = (newRows) => {
-        setRows(newRows);
-        // Rebuild filter object from rows
-        let result = {};
-        newRows.forEach(row => {
-            if (row.path.length === 0) return;
-            result = deepSet(result, row.path, row.operator, row.value);
-        });
-        onChange(result);
-    };
+function FilterGroup({ node, attributes, allTypes, depth, isRoot, onUpdate, onDelete }) {
+    const canNest = depth < MAX_DEPTH;
+    const logicColor = node.logic === "$and" ? "#0a8" : "#e96900";
+    const updateChild = (idx, updated) => onUpdate({ ...node, children: node.children.map((c, i) => i === idx ? updated : c) });
+    const deleteChild = (idx) => onUpdate({ ...node, children: node.children.filter((_, i) => i !== idx) });
+    return (
+        <div style={{ borderLeft: isRoot ? "none" : `3px solid ${logicColor}33`, paddingLeft: isRoot ? 0 : 10, marginTop: isRoot ? 0 : 8 }}>
+            <Flex alignItems="center" gap={2} style={{ marginBottom: 6 }}>
+                <button type="button"
+                    onClick={() => onUpdate({ ...node, logic: node.logic === "$and" ? "$or" : "$and" })}
+                    style={{ padding: "2px 10px", border: `1px solid ${logicColor}`, borderRadius: 12, fontSize: tokens.fontSm, fontWeight: 700, background: `${logicColor}18`, color: logicColor, cursor: "pointer" }}>
+                    {node.logic === "$and" ? "AND" : "OR"}
+                </button>
+                {!isRoot && (
+                    <button type="button" onClick={onDelete}
+                        style={{ ...removeButtonStyle, fontSize: tokens.fontSm }}>
+                        remove group
+                    </button>
+                )}
+            </Flex>
+            {(node.children || []).map((child, idx) =>
+                child.type === "condition"
+                    ? <FilterCondition key={child.id} node={child} attributes={attributes} allTypes={allTypes} onUpdate={(u) => updateChild(idx, u)} onDelete={() => deleteChild(idx)} />
+                    : <FilterGroup key={child.id} node={child} attributes={attributes} allTypes={allTypes} depth={depth + 1} isRoot={false} onUpdate={(u) => updateChild(idx, u)} onDelete={() => deleteChild(idx)} />
+            )}
+            <Flex gap={2} style={{ marginTop: 8 }}>
+                <button type="button"
+                    onClick={() => onUpdate({ ...node, children: [...(node.children || []), makeCondition()] })}
+                    style={ghostButtonStyle}>
+                    + Condition
+                </button>
+                {canNest && (
+                    <button type="button"
+                        onClick={() => onUpdate({ ...node, children: [...(node.children || []), makeGroup(node.logic === "$and" ? "$or" : "$and")] })}
+                        style={{ fontSize: tokens.fontSm, padding: "4px 10px", borderRadius: tokens.radius, border: "1px solid #888", background: "#88888811", color: "#555", cursor: "pointer" }}>
+                        + Group
+                    </button>
+                )}
+            </Flex>
+        </div>
+    );
+}
 
-    const addRow = () => {
-        const newRows = [...rows, { path: [], operator: '$eq', value: '' }];
-        rebuildAndEmit(newRows);
-    };
-
-    const updateRow = (idx, updated) => {
-        const newRows = rows.map((r, i) => (i === idx ? updated : r));
-        rebuildAndEmit(newRows);
-    };
-
-    const removeRow = (idx) => {
-        const newRows = rows.filter((_, i) => i !== idx);
-        rebuildAndEmit(newRows);
-    };
-
-    if (attributes.length === 0) {
-        return (
-            <Box padding={3} style={{ background: '#f4f4f8', borderRadius: 6 }}>
-                <Typography variant="pi" textColor="neutral400">
-                    Select a content type to build filters.
-                </Typography>
-            </Box>
-        );
-    }
-
+export function FiltersBuilder({ attributes, allTypes, value, onChange }) {
+    const [tree, setTree] = useState(() => {
+        if (value && typeof value === "object" && Object.keys(value).length > 0) {
+            return parseFilterObject(value);
+        }
+        return makeGroup("$and");
+    });
+    const handleUpdate = useCallback((updated) => {
+        setTree(updated);
+        const output = buildFilterObject(updated);
+        onChange(output && typeof output === "object" && Object.keys(output).length > 0 ? output : undefined);
+    }, [onChange]);
     return (
         <Box>
-            {rows.map((row, idx) => (
-                <FilterRow
-                    key={idx}
-                    row={row}
-                    idx={idx}
-                    attributes={attributes}
-                    allTypes={allTypes}
-                    onUpdate={updated => updateRow(idx, updated)}
-                    onRemove={() => removeRow(idx)}
-                />
-            ))}
-
-            <button
-                type="button"
-                onClick={addRow}
-                style={{
-                    fontSize: 12, padding: '6px 14px', borderRadius: 6,
-                    border: '1px dashed #4945ff', background: '#4945ff08',
-                    color: '#4945ff', cursor: 'pointer', width: '100%',
-                }}
-            >
-                + Add Filter
-            </button>
-
-            {rows.length > 0 && (
-                <Box paddingTop={2} style={{ background: '#f4f4f8', borderRadius: 6, padding: 8, marginTop: 6 }}>
-                    <Typography variant="pi" textColor="neutral500" style={{ fontSize: 10 }}>
-                        Preview:{'  '}
-                        <code style={{ fontSize: 10, wordBreak: 'break-all' }}>
-                            {JSON.stringify(value || {}, null, 0)}
-                        </code>
-                    </Typography>
-                </Box>
-            )}
+            <FilterGroup node={tree} attributes={attributes} allTypes={allTypes} depth={0} isRoot={true} onUpdate={handleUpdate} onDelete={() => {}} />
         </Box>
     );
 }
+
+export default FiltersBuilder;

@@ -40,6 +40,24 @@ module.exports = ({ strapi }) => ({
     if (Array.isArray(rules.stripBodyFields) && ctx.request?.body) {
       for (const field of rules.stripBodyFields) {
         delete ctx.request.body[field];
+        if (ctx.request.body.data && typeof ctx.request.body.data === 'object') {
+          delete ctx.request.body.data[field];
+        }
+      }
+    }
+
+    // Allowed body fields — whitelist for POST/PUT/PATCH; keys not in the list are stripped
+    if (Array.isArray(rules.allowedBodyFields) && rules.allowedBodyFields.length > 0 && ctx.request?.body) {
+      const allowed = new Set(rules.allowedBodyFields.map(String));
+      // Strapi v5 wraps body in { data: {...} }
+      if (ctx.request.body.data && typeof ctx.request.body.data === 'object') {
+        for (const key of Object.keys(ctx.request.body.data)) {
+          if (!allowed.has(key)) delete ctx.request.body.data[key];
+        }
+      } else {
+        for (const key of Object.keys(ctx.request.body)) {
+          if (!allowed.has(key)) delete ctx.request.body[key];
+        }
       }
     }
     

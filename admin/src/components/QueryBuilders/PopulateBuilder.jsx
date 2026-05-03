@@ -1,5 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { Box, Typography, Flex } from '@strapi/design-system';
+import { tokens } from '../ui.jsx';
 
 const RELATION_TYPES = ['relation', 'component', 'media'];
 
@@ -62,8 +63,8 @@ function RelationBadge({ type, relation }) {
     const label = type === 'relation' ? (relation || 'relation') : type;
     return (
         <span style={{
-            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
-            background: color + '22', color, border: `1px solid ${color}66`,
+            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: tokens.radius,
+            background: `${color}22`, color, border: `1px solid ${color}66`,
             textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0,
         }}>
             {label}
@@ -110,7 +111,7 @@ function PopulateNode({ attr, node = {}, allTypes, depth = 0, onChange }) {
                 style={{
                     padding: '5px 8px',
                     paddingLeft: 8 + indent,
-                    background: included ? '#4945ff08' : 'transparent',
+                    background: included ? `${tokens.primary}08` : 'transparent',
                     borderBottom: '1px solid #f0f0f4',
                     cursor: 'pointer',
                 }}
@@ -123,28 +124,29 @@ function PopulateNode({ attr, node = {}, allTypes, depth = 0, onChange }) {
                     onClick={e => e.stopPropagation()}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                 />
-                <span style={{ flex: 1, fontSize: 13, fontFamily: 'monospace' }}>{attr.name}</span>
+                <span style={{ flex: 1, fontSize: tokens.fontBase, fontFamily: tokens.monoFont }}>{attr.name}</span>
                 <RelationBadge type={attr.type} relation={attr.relation} />
                 {targetUid && (
-                    <span style={{ fontSize: 10, color: '#888', fontFamily: 'monospace' }}>- {targetUid}</span>
+                    <span style={{ fontSize: 10, color: '#888', fontFamily: tokens.monoFont }}>— {targetUid}</span>
                 )}
                 {hasChildren && included && (
                     <button
                         type="button"
                         onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
                         style={{
-                            fontSize: 11, padding: '1px 6px', borderRadius: 4,
-                            border: '1px solid #4945ff', background: expanded ? '#4945ff' : '#fff',
-                            color: expanded ? '#fff' : '#4945ff', cursor: 'pointer',
+                            fontSize: tokens.fontSm, padding: '1px 6px', borderRadius: tokens.radius,
+                            border: `1px solid ${tokens.primary}`,
+                            background: expanded ? tokens.primary : '#fff',
+                            color: expanded ? '#fff' : tokens.primary, cursor: 'pointer',
                         }}
                     >
-                        {expanded ? '- nested' : '- nested'}
+                        {expanded ? '▲ nested' : '▼ nested'}
                     </button>
                 )}
             </Flex>
 
             {hasChildren && included && expanded && (
-                <Box style={{ background: '#fafafa' }}>
+                <Box style={{ background: tokens.surfaceBg }}>
                     {childAttrs.map(childAttr => (
                         <PopulateNode
                             key={childAttr.name}
@@ -190,7 +192,7 @@ export function PopulateBuilder({ attributes = [], allTypes = new Map(), value, 
 
     if (populateable.length === 0) {
         return (
-            <Box padding={3} style={{ background: '#f4f4f8', borderRadius: 6 }}>
+            <Box padding={3} style={{ background: tokens.surfaceBg, borderRadius: tokens.radius }}>
                 <Typography variant="pi" textColor="neutral400">
                     No relations or components found. Select a content type first.
                 </Typography>
@@ -209,7 +211,7 @@ export function PopulateBuilder({ attributes = [], allTypes = new Map(), value, 
                     </Typography>
                 </Box>
             )}
-            <Box style={{ border: '1px solid #e0e0e8', borderRadius: 6, overflow: 'hidden' }}>
+            <Box style={{ border: '1px solid #e0e0e8', borderRadius: tokens.radius, overflow: 'hidden' }}>
                 {populateable.map(attr => (
                     <PopulateNode
                         key={attr.name}
