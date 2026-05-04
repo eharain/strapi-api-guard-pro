@@ -24,7 +24,7 @@ module.exports = ({ strapi }) => ({
     let matchedViaCanonical = false;
 
     // --- Canonical URL detection: /{domainKey}/{roleKey}/{resourceKey}[/...] ---
-    const SYSTEM_PREFIXES = ['/api/', '/admin/', '/_health', '/documentation', '/uploads',
+    const SYSTEM_PREFIXES = ['/api/', '/admin/', '/_health', '/documentation', '/upload',
       '/content-manager', '/i18n', '/users-permissions', '/api-guard-pro'];
     const isSystemPath = SYSTEM_PREFIXES.some(p => path.startsWith(p));
 
@@ -82,7 +82,7 @@ module.exports = ({ strapi }) => ({
 
     const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
     const shouldRecord = recorder?.isEnabled?.() === true;
-    const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/uploads', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'];
+    const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/upload', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'];
     const configuredBypassPaths = Array.isArray(config.bypassPaths) ? config.bypassPaths : [];
     const bypassPaths = [...new Set([...defaultBypassPaths, ...configuredBypassPaths])];
 
