@@ -20,12 +20,21 @@ module.exports = async ({ strapi }) => {
       }
 
       // Skip bypass paths
-      const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/upload', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'];
+      const defaultBypassPaths = ['/admin', '/_health', '/documentation', '/upload', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions', '/api/auth', '/api/me'];
       const configuredBypassPaths = Array.isArray(config?.bypassPaths) ? config.bypassPaths : [];
       const bypassPaths = [...new Set([...defaultBypassPaths, ...configuredBypassPaths])];
       const currentPath = ctx.path || ctx.url || '';
 
-      if (bypassPaths.some(path => currentPath.startsWith(path))) {
+      const normalizePrefix = (value) => {
+        const normalized = `/${String(value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '')}`;
+        return normalized === '/' ? normalized : normalized;
+      };
+      const normalizedCurrentPath = normalizePrefix(currentPath);
+
+      if (bypassPaths.some((prefix) => {
+        const normalizedPrefix = normalizePrefix(prefix);
+        return normalizedCurrentPath === normalizedPrefix || normalizedCurrentPath.startsWith(`${normalizedPrefix}/`);
+      })) {
         return next();
       }
 

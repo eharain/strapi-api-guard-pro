@@ -112,5 +112,26 @@ module.exports = [
     handler: 'admin.clearCache',
     info: { type: 'admin' },
     config: { type: 'admin', auth: false }
+  },
+  {
+    method: 'POST',
+    path: '/resource-builder/promote-catalog',
+    handler: 'admin.promoteCatalog',
+    info: { type: 'admin' },
+    config: { type: 'admin', auth: false }
+  },
+  {
+    method: 'POST',
+    path: '/resource-recorder/promote',
+    handler: 'admin.promoteRecordings',
+    info: { type: 'admin' },
+    config: { type: 'admin', auth: false }
+  },
+  {
+    method: 'POST',
+    path: '/seed/from-metadata',
+    handler: 'admin.seedFromMetadata',
+    info: { type: 'admin' },
+    config: { type: 'admin', auth: false }
   }
 ];

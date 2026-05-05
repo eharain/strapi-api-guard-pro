@@ -378,5 +378,210 @@ module.exports = ({ strapi }) => ({
     } else {
       ctx.send({ ok: false, message: 'Permission engine not available' });
     }
+  },
+
+  // ── Promote live router catalog → guard_resources ──────────────────────
+  // Converts every Strapi API route from the live Koa router stack into a
+  // guard_resource record.  Idempotent (keyed on `key`).
+  // Body: { domainId?, isPublic?, isActive?, overwrite? }
+  async promoteCatalog(ctx) {
+    const body = ctx.request.body || {};
+    const domainId = body.domainId ? Number(body.domainId) : null;
+    const isPublic = Boolean(body.isPublic ?? false);
+    const isActive = Boolean(body.isActive ?? true);
+    const overwrite = Boolean(body.overwrite ?? false);
+
+    const routes = getRuntimeRoutes(strapi);
+    const apiRoutes = routes.filter(r => r.path.startsWith('/api/'));
+
+    const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+
+    for (const route of apiRoutes) {
+      try {
+        // Derive a stable key from method + path pattern
+        const key = (route.method.toLowerCase() + '.' + route.path)
+          .replace(/\//g, '.')
+          .replace(/[:{}]/g, '')
+          .replace(/\.+/g, '.')
+          .replace(/^\.|\.$/g, '');
+
+        if (!key) { results.skipped++; continue; }
+
+        const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
+        const binding = recorder
+          // toResourceForm needs an entry — build a minimal one inline
+          ? (() => {
+            const { inferStrapiBinding } = require('../services/resource-recorder');
+            // inferStrapiBinding is not exported directly; use recorder internal path matching
+            return null;
+          })()
+          : null;
+
+        // Resolve contentTypeUid from content types by pluralName match
+        const pathSegments = route.path.split('/').filter(Boolean);
+        const collectionSlug = pathSegments[1] || '';
+        const ct = Object.values(strapi.contentTypes).find(c =>
+          !c.plugin && (c.info?.pluralName === collectionSlug || c.info?.singularName === collectionSlug)
+        );
+
+        const hasId = route.path.includes(':id');
+        const actionMap = {
+          GET: hasId ? 'findOne' : 'find',
+          POST: 'create',
+          PUT: 'update',
+          PATCH: 'update',
+          DELETE: 'delete'
+        };
+        const action = actionMap[route.method] || 'custom';
+        const displayName = `${route.method} ${route.path}`;
+
+        const data = {
+          key,
+          displayName,
+          method: route.method,
+          pathPattern: route.path,
+          contentTypeUid: ct?.uid || null,
+          isPublic,
+          isActive,
+          effect: 'allow',
+          requestRules: {},
+          responseRules: {},
+          domain: domainId ? { id: domainId } : null
+        };
+
+        const existing = await strapi.db.query(MODEL_UIDS.resources).findOne({ where: { key } });
+        if (existing) {
+          if (!overwrite) { results.skipped++; continue; }
+          await strapi.db.query(MODEL_UIDS.resources).update({ where: { id: existing.id }, data });
+          results.updated++;
+        } else {
+          await strapi.db.query(MODEL_UIDS.resources).create({ data });
+          results.created++;
+        }
+      } catch (err) {
+        results.errors.push({ path: route.path, method: route.method, error: err.message });
+      }
+    }
+
+    ctx.send({ data: results, total: apiRoutes.length });
+  },
+
+  // ── Promote recordings → guard_resources ───────────────────────────────
+  // Body: { domainId?, isPublic?, isActive?, overwrite? }
+  async promoteRecordings(ctx) {
+    const body = ctx.request.body || {};
+    const recorder = strapi.service('plugin::api-guard-pro.resource-recorder');
+    const results = await recorder.promoteRecordings({
+      domainId: body.domainId ? Number(body.domainId) : null,
+      isPublic: Boolean(body.isPublic ?? false),
+      isActive: Boolean(body.isActive ?? true),
+      overwrite: Boolean(body.overwrite ?? false)
+    });
+    ctx.send({ data: results });
+  },
+
+  // ── Seed domains / roles / policies / grants from metadata ─────────────
+  // Accepts a structured metadata payload produced by the ERP's access-metadata.js.
+  // All upserts are idempotent (keyed on `key` per entity type).
+  //
+  // Payload shape:
+  // {
+  //   domains: [{ key, name, matchKey?, matchMode?, strapiRoleType?, blockDirectAccess? }],
+  //   roles:   [{ key, name, domainKey, type?, strapiRoleType? }],
+  //   policies:[{ key, name, resourceKey, actions, effect?, conditions? }],
+  //   grants:  [{ roleKey, policyKey }]
+  // }
+  async seedFromMetadata(ctx) {
+    const payload = ctx.request.body || {};
+    const domains   = Array.isArray(payload.domains)  ? payload.domains  : [];
+    const roles     = Array.isArray(payload.roles)     ? payload.roles    : [];
+    const policies  = Array.isArray(payload.policies)  ? payload.policies : [];
+    const grants    = Array.isArray(payload.grants)    ? payload.grants   : [];
+
+    const results = { domains: {created:0,updated:0,errors:[]}, roles: {created:0,updated:0,errors:[]}, policies: {created:0,updated:0,errors:[]}, grants: {created:0,updated:0,errors:[]} };
+
+    const upsert = async (uid, where, data, bucket) => {
+      try {
+        const existing = await strapi.db.query(uid).findOne({ where });
+        if (existing) {
+          await strapi.db.query(uid).update({ where: { id: existing.id }, data });
+          bucket.updated++;
+          return existing.id;
+        } else {
+          const created = await strapi.db.query(uid).create({ data });
+          bucket.created++;
+          return created.id;
+        }
+      } catch (err) {
+        bucket.errors.push({ where, error: err.message });
+        return null;
+      }
+    };
+
+    // 1. Domains
+    const domainIdByKey = {};
+    for (const d of domains) {
+      if (!d.key) continue;
+      const id = await upsert(MODEL_UIDS.domains, { key: d.key }, {
+        key: d.key,
+        name: d.name || d.key,
+        matchKey: d.matchKey || d.key,
+        matchMode: d.matchMode || 'header',
+        strapiRoleType: d.strapiRoleType || 'authenticated',
+        blockDirectAccess: Boolean(d.blockDirectAccess ?? false),
+        isActive: true
+      }, results.domains);
+      if (id) domainIdByKey[d.key] = id;
+    }
+
+    // 2. Roles
+    const roleIdByKey = {};
+    for (const r of roles) {
+      if (!r.key) continue;
+      const domainId = r.domainKey ? domainIdByKey[r.domainKey] : null;
+      const id = await upsert(MODEL_UIDS.roles, { key: r.key }, {
+        key: r.key,
+        name: r.name || r.key,
+        type: r.type || 'app',
+        strapiRoleType: r.strapiRoleType || 'authenticated',
+        isActive: true,
+        domain: domainId ? { id: domainId } : null
+      }, results.roles);
+      if (id) roleIdByKey[r.key] = id;
+    }
+
+    // 3. Policies — link to resource by key if resourceKey is provided
+    const policyIdByKey = {};
+    for (const p of policies) {
+      if (!p.key) continue;
+      let resourceId = null;
+      if (p.resourceKey) {
+        const res = await strapi.db.query(MODEL_UIDS.resources).findOne({ where: { key: p.resourceKey } });
+        resourceId = res?.id || null;
+      }
+      const id = await upsert(MODEL_UIDS.policies, { key: p.key }, {
+        key: p.key,
+        name: p.name || p.key,
+        effect: p.effect || 'allow',
+        actions: Array.isArray(p.actions) ? p.actions : [p.actions].filter(Boolean),
+        conditions: p.conditions || {},
+        resource: resourceId ? { id: resourceId } : null
+      }, results.policies);
+      if (id) policyIdByKey[p.key] = id;
+    }
+
+    // 4. Grants — link role → policy
+    for (const g of grants) {
+      const roleId   = roleIdByKey[g.roleKey];
+      const policyId = policyIdByKey[g.policyKey];
+      if (!roleId || !policyId) { results.grants.errors.push({ grant: g, error: 'role or policy not found' }); continue; }
+      await upsert(MODEL_UIDS.grants, { role: { id: roleId }, policy: { id: policyId } }, {
+        role: { id: roleId },
+        policy: { id: policyId },
+        isActive: true
+      }, results.grants);
+    }
+
+    ctx.send({ data: results });
   }
 });

@@ -8,7 +8,7 @@ module.exports = {
     denyByDefault: true,
     interceptorEnabled: true,
     enforcementMode: 'enforce',
-    bypassPaths: ['/admin', '/_health', '/documentation', '/upload', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions'],
+      bypassPaths: ['/admin', '/_health', '/documentation', '/upload', '/api-guard-pro', '/content-manager', '/i18n', '/users-permissions', '/api/auth', '/api/me'],
     cacheTTL: 30000,
     enableAdminUI: true,
     enableLogging: true,

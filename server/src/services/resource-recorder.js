@@ -395,6 +395,53 @@ module.exports = ({ strapi }) => {
       return await strapi.db.query(RECORDING_UID).create({ data: { ...data, count: 1, firstSeenAt: now } });
     },
 
+    // ── Promote all recordings → guard_resources ─────────────────────────
+    // Converts every stored recording into a resource form via toResourceForm()
+    // and upserts it into plugin::api-guard-pro.resource keyed on `key`.
+    // Returns { created, updated, skipped, errors }.
+    async promoteRecordings({ domainId = null, isPublic = false, isActive = true, overwrite = false } = {}) {
+      const rows = await this.list();
+      const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+
+      for (const entry of rows) {
+        try {
+          const form = this.toResourceForm(entry);
+          if (!form.key || !form.method || !form.pathPattern) { results.skipped++; continue; }
+
+          const existing = await strapi.db.query('plugin::api-guard-pro.resource').findOne({ where: { key: form.key } });
+
+          const data = {
+            key: form.key,
+            displayName: form.displayName || form.key,
+            description: form.description || null,
+            method: form.method,
+            pathPattern: form.pathPattern,
+            aliasPath: form.aliasPath || null,
+            contentTypeUid: form.contentTypeUid || null,
+            isPublic: Boolean(isPublic),
+            isActive: Boolean(isActive),
+            effect: form.effect || 'allow',
+            requestRules: form.requestRules || {},
+            responseRules: form.responseRules || {},
+            domain: domainId ? { id: domainId } : null
+          };
+
+          if (existing) {
+            if (!overwrite) { results.skipped++; continue; }
+            await strapi.db.query('plugin::api-guard-pro.resource').update({ where: { id: existing.id }, data });
+            results.updated++;
+          } else {
+            await strapi.db.query('plugin::api-guard-pro.resource').create({ data });
+            results.created++;
+          }
+        } catch (err) {
+          results.errors.push({ key: entry.recordKey, error: err.message });
+        }
+      }
+
+      return results;
+    },
+
     async listPaginated({ page = 1, pageSize = 20, search = '', method: methodFilter = '', matched = '' } = {}) {
       const pageNum = Math.max(1, Number(page) || 1);
       const pageSizeNum = Math.min(100, Math.max(1, Number(pageSize) || 20));

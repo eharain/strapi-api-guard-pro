@@ -7,23 +7,31 @@ module.exports = ({ strapi }) => ({
       ...(resource.requestMutation || {})
     };
 
-    // Apply static filters
+    // Build a rich token context so requestRules can reference $query.*, $params.*, $body.*, $user.*, etc.
+    const tokenCtx = {
+      ...context,
+      query: ctx.query || {},
+      params: ctx.params || {},
+      body: ctx.request?.body?.data || ctx.request?.body || {},
+    };
+
+    // Apply static filters — values are deep-resolved so $query.q etc. are substituted
     if (rules.filters && typeof rules.filters === 'object') {
       ctx.query = ctx.query || {};
-      ctx.query.filters = {
-        ...(ctx.query.filters || {}),
-        ...rules.filters
-      };
+      ctx.query.filters = this.mergeDeep(
+        ctx.query.filters || {},
+        this.resolveDeep(rules.filters, tokenCtx)
+      );
     }
     
     // Apply dynamic filters
     if (Array.isArray(rules.dynamicFilters)) {
       ctx.query = ctx.query || {};
       ctx.query.filters = ctx.query.filters || {};
-      
+
       for (const rule of rules.dynamicFilters) {
         if (!rule?.path) continue;
-        const value = this.resolveToken(rule.value, context);
+        const value = this.resolveToken(rule.value, tokenCtx);
         if (value === undefined) continue;
         
         const keys = String(rule.path).split('.');
@@ -61,11 +69,18 @@ module.exports = ({ strapi }) => ({
       }
     }
     
+    // Inject server-defined populate when client sent none
+    // Only injects if requestRules.injectPopulate is set AND the client didn't send any populate.
+    if (rules.injectPopulate && typeof rules.injectPopulate === 'object' && !ctx.query?.populate) {
+      ctx.query = ctx.query || {};
+      ctx.query.populate = rules.injectPopulate;
+    }
+
     // Force body fields
     if (rules.forceBodyFields && typeof rules.forceBodyFields === 'object') {
       ctx.request.body = ctx.request.body || {};
       for (const [key, value] of Object.entries(rules.forceBodyFields)) {
-        const resolved = typeof value === 'string' ? this.resolveToken(value, context) : value;
+        const resolved = typeof value === 'string' ? this.resolveToken(value, tokenCtx) : value;
         if (resolved !== undefined) {
           ctx.request.body[key] = resolved;
         }
@@ -158,7 +173,7 @@ module.exports = ({ strapi }) => ({
     // Header mutations
     if (rules.forceHeaders && typeof rules.forceHeaders === 'object') {
       for (const [key, value] of Object.entries(rules.forceHeaders)) {
-        const resolved = typeof value === 'string' ? this.resolveToken(value, context) : value;
+        const resolved = typeof value === 'string' ? this.resolveToken(value, tokenCtx) : value;
         if (resolved !== undefined) {
           ctx.request.headers = ctx.request.headers || {};
           ctx.request.headers[String(key).toLowerCase()] = resolved;
@@ -178,6 +193,10 @@ module.exports = ({ strapi }) => ({
   resolveToken(value, context) {
     if (typeof value !== 'string' || !value.startsWith('$')) return value;
 
+    // Special scalar tokens
+    if (value === '$today') return new Date().toISOString().split('T')[0];
+    if (value === '$now')   return new Date().toISOString();
+
     const parts = value.slice(1).split('.');
     let result = context;
     for (const part of parts) {
@@ -185,15 +204,42 @@ module.exports = ({ strapi }) => ({
       result = result[part];
     }
 
-    // Handle special tokens
-    if (result === '$today') {
-      return new Date().toISOString().split('T')[0];
-    }
-    if (result === '$now') {
-      return new Date().toISOString();
-    }
-
     return result;
+  },
+
+  // Recursively walk a plain object/array and resolve any string token values.
+  // Used so filter trees like { $or: [{ invoice_no: "$query.q" }] } resolve correctly.
+  resolveDeep(value, context) {
+    if (Array.isArray(value)) {
+      return value.map(v => this.resolveDeep(v, context));
+    }
+    if (value !== null && typeof value === 'object') {
+      const out = {};
+      for (const [k, v] of Object.entries(value)) {
+        out[k] = this.resolveDeep(v, context);
+      }
+      return out;
+    }
+    if (typeof value === 'string' && value.startsWith('$')) {
+      return this.resolveToken(value, context);
+    }
+    return value;
+  },
+
+  // Simple deep merge (right wins on scalar, arrays replaced, objects merged).
+  mergeDeep(target, source) {
+    if (typeof source !== 'object' || source === null) return source;
+    const out = { ...target };
+    for (const [k, v] of Object.entries(source)) {
+      if (Array.isArray(v)) {
+        out[k] = v;
+      } else if (v !== null && typeof v === 'object' && typeof out[k] === 'object' && !Array.isArray(out[k])) {
+        out[k] = this.mergeDeep(out[k], v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
   },
 
   normalizeListParam(value) {
