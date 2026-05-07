@@ -1,67 +1,67 @@
-{
+﻿{
   "kind": "collectionType",
   "collectionName": "guard_policies",
   "info": {
     "singularName": "policy",
     "pluralName": "policies",
     "displayName": "Policy",
-    "description": "Permission rule for resources"
+    "description": "Access policy attached to a single resource action. Uniquely identified by <contentTypeUid>.<controller.action>.<policyKey>."
   },
-  "options": {
-    "draftAndPublish": false
-  },
+  "options": { "draftAndPublish": false },
   "pluginOptions": {
-    "content-manager": {
-      "visible": false
-    },
-    "content-type-builder": {
-      "visible": false
-    }
+    "content-manager": { "visible": false },
+    "content-type-builder": { "visible": false }
   },
   "attributes": {
+    "uid": {
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "description": "Fully qualified policy id: '<contentTypeUid>.<controller.action>.<policyKey>'"
+    },
     "key": {
       "type": "string",
       "required": true,
-      "unique": true
+      "description": "Short policy key as authored, e.g. 'branchOwn', 'hqAccess'"
     },
-    "name": {
+    "contentTypeUid": {
       "type": "string",
-      "required": true
-    },
-    "description": {
-      "type": "text"
-    },
-    "actions": {
-      "type": "json",
       "required": true,
-      "default": ["read"]
+      "description": "Strapi content-type UID, e.g. 'api::product.product'"
     },
-    "effect": {
-      "type": "enumeration",
-      "enum": ["allow", "deny"],
-      "default": "allow",
-      "required": true
+    "actionName": {
+      "type": "string",
+      "required": true,
+      "description": "Strapi controller.action, e.g. 'product.find'"
     },
-    "conditions": {
+    "description": { "type": "text" },
+    "isActive": { "type": "boolean", "default": true },
+    "query": {
       "type": "json",
-      "default": []
+      "default": {},
+      "description": "Read-side shaping: filters, populate, fields, sort, pagination"
     },
-    "fields": {
+    "filters": {
       "type": "json",
-      "default": []
+      "default": {},
+      "description": "Write-side row scoping filters"
     },
-    "priority": {
-      "type": "integer",
-      "default": 0
-    },
-    "isActive": {
-      "type": "boolean",
-      "default": true
+    "body": {
+      "type": "json",
+      "default": {},
+      "description": "Write-side body overrides/forced values"
     },
     "resource": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.resource"
+      "target": "plugin::api-guard-pro.resource",
+      "inversedBy": "policies"
+    },
+    "grants": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::api-guard-pro.role",
+      "inversedBy": "policies"
     }
   }
 }

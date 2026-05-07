@@ -5,7 +5,7 @@
     "singularName": "domain",
     "pluralName": "domains",
     "displayName": "Domain",
-    "description": "Application domain for multi-tenancy"
+    "description": "Logical grouping that owns a set of roles"
   },
   "options": {
     "draftAndPublish": false
@@ -24,11 +24,11 @@
       "required": true,
       "unique": true,
       "minLength": 2,
-      "regex": "^[a-z][a-z0-9-]*$"
+      "regex": "^[a-z][a-z0-9_-]*$",
+      "description": "Stable identifier used in import/export (e.g. 'stock', 'crm')"
     },
     "name": {
-      "type": "string",
-      "required": true
+      "type": "string"
     },
     "description": {
       "type": "text"
@@ -37,23 +37,11 @@
       "type": "boolean",
       "default": true
     },
-    "strapiRoleType": {
-      "type": "string",
-      "default": "authenticated"
-    },
-    "matchMode": {
-      "type": "enumeration",
-      "enum": ["header", "query", "both"],
-      "default": "header"
-    },
-    "matchKey": {
-      "type": "string",
-      "default": "x-app-name"
-    },
-    "blockDirectAccess": {
-      "type": "boolean",
-      "default": false,
-      "description": "When true, blocks direct /api/* calls for resources in this domain. Clients must use /{domainKey}/{roleKey}/{resourceKey} instead."
+    "roles": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::api-guard-pro.role",
+      "mappedBy": "domain"
     }
   }
 }

@@ -271,76 +271,59 @@ module.exports = ({ strapi }) => {
 
     toResourceForm(entry) {
       const qp = (entry.queryParamsJson && typeof entry.queryParamsJson === 'object') ? entry.queryParamsJson : {};
-
-      // Map Strapi standard REST query params to their requestRules counterparts
-      const parsedQueryRules = {};
-      if (qp.filters && typeof qp.filters === 'object') parsedQueryRules.filters = qp.filters;
-      if (qp.fields) {
-        const f = qp.fields;
-        parsedQueryRules.allowedFields = Array.isArray(f) ? f.map(String) : [String(f)];
-      }
-      if (qp.populate) {
-        const p = qp.populate;
-        parsedQueryRules.allowedPopulate = Array.isArray(p) ? p.map(String) : typeof p === 'object' ? Object.keys(p) : [String(p)];
-      }
-      if (qp.sort) parsedQueryRules.allowedSort = qp.sort;
-      if (qp.pagination && typeof qp.pagination === 'object') parsedQueryRules.defaultPagination = qp.pagination;
-      if (qp.locale) parsedQueryRules.allowedLocale = qp.locale;
-      if (qp.status) parsedQueryRules.allowedStatus = qp.status;
-
-      const baseRules = entry.suggestedRequestRules || {};
+      const body = entry.exampleBody && typeof entry.exampleBody === 'object' ? entry.exampleBody : null;
       const count = entry.count || 1;
 
       // ── Infer content type binding from the recorded path + method ──────────
       const inferredBinding = inferStrapiBinding(strapi, entry.method || 'GET', entry.path || '');
+      const contentTypeUid = inferredBinding.contentTypeUid || '';
 
-      // ── Convert raw recorded path to a route pattern (replace IDs with :id) ─
-      const routePattern = inferredBinding.pathPattern || convertPathToPattern(entry.path || '');
-      const routeName = (entry.method || 'get').toLowerCase() + '.' + routePattern.replace(/\//g, '.').replace(/[:{}]/g, '').replace(/\.+/g, '.').replace(/^\./, '') || 'root';
+      // controllerAction is 'api::xx.xx.find' — actionName must be '<singular>.<action>'
+      const handlerParts = String(inferredBinding.controllerAction || '').split('.');
+      const actionName = handlerParts.length >= 3
+        ? `${handlerParts[1]}.${handlerParts.slice(2).join('.')}`
+        : '';
+
+      // Build the policy.query payload from recorded REST query params.
+      const query = {};
+      if (qp.filters && typeof qp.filters === 'object') query.filters = qp.filters;
+      if (qp.fields)     query.fields = Array.isArray(qp.fields) ? qp.fields.map(String) : [String(qp.fields)];
+      if (qp.populate)   query.populate = qp.populate;
+      if (qp.sort)       query.sort = qp.sort;
+      if (qp.pagination && typeof qp.pagination === 'object') query.pagination = qp.pagination;
+
+      const description = [
+        `Suggested from recorder (${count} hit${count > 1 ? 's' : ''})`,
+        entry.exampleUrl ? `Example URL: ${entry.exampleUrl}` : null,
+        entry.lastStatus ? `Last status: ${entry.lastStatus}` : null,
+      ].filter(Boolean).join(' | ');
 
       return {
-        // Identity
-        key: entry.recordKey,
-        displayName: entry.method + ' ' + routePattern,
-        description: [
-          `Suggested from recorder (${count} hit${count > 1 ? 's' : ''})`,
-          entry.exampleUrl ? `Example URL: ${entry.exampleUrl}` : null,
-          entry.lastStatus ? `Last status: ${entry.lastStatus}` : null
-        ].filter(Boolean).join(' | '),
-
-        // Type & method
-        type: entry.matched ? 'extended' : 'standard',
-        method: entry.method || 'GET',
-
-        // Routing — use matched route pattern, not the raw recorded path
-        pathPattern: routePattern,
-        aliasPath: '',
-        'route-name': routeName,
-
-        // Strapi binding — inferred from route matching
-        contentTypeUid: inferredBinding.contentTypeUid || '',
-        'content-type-uid': inferredBinding.contentTypeUid || '',
-        controllerAction: inferredBinding.controllerAction || '',
-
-        // Defaults
-        domain: null,
-        parentResource: null,
-        isPublic: false,
+        // Resource side
+        contentTypeUid,
+        displayName: contentTypeUid || (entry.method + ' ' + (entry.path || '')),
+        description,
         isActive: true,
-        effect: 'allow',
 
-        // Rules — server-derived from recorded query params
-        requestRules: { ...baseRules, ...parsedQueryRules, recordedUrlParts: entry.urlParts || null, recordedQueryParams: qp, recordedBodySample: entry.exampleBody || null },
-        responseRules: {},
-        matchCriteria: { method: entry.method || 'GET', pathPattern: entry.path || '', uri: entry.urlParts || null, queryParams: qp },
-        requestMutation: { ...baseRules },
-        responseMutation: { exampleQuery: entry.exampleQuery || null, exampleBody: entry.exampleBody || null },
+        // Action + suggested policy under the resource
+        actionName,
+        suggestedPolicy: {
+          key: 'recorded',
+          query,
+          filters: {},
+          body: body || {},
+        },
 
-        // Recorded metadata for the form UI
+        // Raw recording context (for UI)
         recordedQueryParams: qp,
-        recordedParsedQueryRules: parsedQueryRules,
-        recordedRequestRaw: { method: entry.method, path: entry.path, url: entry.exampleUrl || null, query: entry.exampleQuery || {}, body: entry.exampleBody || null, status: entry.lastStatus != null ? entry.lastStatus : null },
-        recordedRequestParsed: { uri: entry.urlParts || null, queryParams: qp, body: entry.exampleBody || null, requestRules: baseRules }
+        recordedRequestRaw: {
+          method: entry.method,
+          path: entry.path,
+          url: entry.exampleUrl || null,
+          query: entry.exampleQuery || {},
+          body: entry.exampleBody || null,
+          status: entry.lastStatus != null ? entry.lastStatus : null,
+        },
       };
     },
 
@@ -395,47 +378,104 @@ module.exports = ({ strapi }) => {
       return await strapi.db.query(RECORDING_UID).create({ data: { ...data, count: 1, firstSeenAt: now } });
     },
 
-    // ── Promote all recordings → guard_resources ─────────────────────────
-    // Converts every stored recording into a resource form via toResourceForm()
-    // and upserts it into plugin::api-guard-pro.resource keyed on `key`.
-    // Returns { created, updated, skipped, errors }.
-    async promoteRecordings({ domainId = null, isPublic = false, isActive = true, overwrite = false } = {}) {
+    // ── Promote all recordings → resource + policy rows ────────────────────
+    // Each unique contentTypeUid becomes (or updates) a resource. Each
+    // unique (contentTypeUid, actionName) gets a suggested policy row.
+    // Returns { resources: {...}, policies: {...} }.
+    async promoteRecordings({ isActive = true, overwrite = false, grantRoleKeys = [] } = {}) {
       const rows = await this.list();
-      const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+      const results = {
+        resources: { created: 0, updated: 0, skipped: 0, errors: [] },
+        policies:  { created: 0, updated: 0, skipped: 0, errors: [] },
+      };
+
+      const RES_UID = 'plugin::api-guard-pro.resource';
+      const POL_UID = 'plugin::api-guard-pro.policy';
+      const ROLE_UID = 'plugin::api-guard-pro.role';
+
+      // Resolve grant role IDs once.
+      let grantIds = [];
+      if (Array.isArray(grantRoleKeys) && grantRoleKeys.length) {
+        const roles = await strapi.db.query(ROLE_UID).findMany({ where: { key: { $in: grantRoleKeys } } });
+        grantIds = roles.map((r) => ({ id: r.id }));
+      }
+
+      const resourceIdByCtUid = {};
 
       for (const entry of rows) {
+        let form;
+        try { form = this.toResourceForm(entry); } catch (err) {
+          results.resources.errors.push({ key: entry.recordKey, error: err.message });
+          continue;
+        }
+
+        if (!form.contentTypeUid || !form.actionName) {
+          results.resources.skipped++;
+          continue;
+        }
+
+        // 1. Upsert resource
         try {
-          const form = this.toResourceForm(entry);
-          if (!form.key || !form.method || !form.pathPattern) { results.skipped++; continue; }
-
-          const existing = await strapi.db.query('plugin::api-guard-pro.resource').findOne({ where: { key: form.key } });
-
-          const data = {
-            key: form.key,
-            displayName: form.displayName || form.key,
-            description: form.description || null,
-            method: form.method,
-            pathPattern: form.pathPattern,
-            aliasPath: form.aliasPath || null,
-            contentTypeUid: form.contentTypeUid || null,
-            isPublic: Boolean(isPublic),
-            isActive: Boolean(isActive),
-            effect: form.effect || 'allow',
-            requestRules: form.requestRules || {},
-            responseRules: form.responseRules || {},
-            domain: domainId ? { id: domainId } : null
-          };
-
-          if (existing) {
-            if (!overwrite) { results.skipped++; continue; }
-            await strapi.db.query('plugin::api-guard-pro.resource').update({ where: { id: existing.id }, data });
-            results.updated++;
-          } else {
-            await strapi.db.query('plugin::api-guard-pro.resource').create({ data });
-            results.created++;
+          if (!resourceIdByCtUid[form.contentTypeUid]) {
+            const existing = await strapi.db.query(RES_UID).findOne({ where: { contentTypeUid: form.contentTypeUid } });
+            const data = {
+              contentTypeUid: form.contentTypeUid,
+              displayName: form.displayName || form.contentTypeUid,
+              description: form.description || null,
+              isActive: Boolean(isActive),
+            };
+            if (existing) {
+              if (overwrite) {
+                await strapi.db.query(RES_UID).update({ where: { id: existing.id }, data });
+                results.resources.updated++;
+              } else {
+                results.resources.skipped++;
+              }
+              resourceIdByCtUid[form.contentTypeUid] = existing.id;
+            } else {
+              const created = await strapi.db.query(RES_UID).create({ data });
+              resourceIdByCtUid[form.contentTypeUid] = created.id;
+              results.resources.created++;
+            }
           }
         } catch (err) {
-          results.errors.push({ key: entry.recordKey, error: err.message });
+          results.resources.errors.push({ key: form.contentTypeUid, error: err.message });
+          continue;
+        }
+
+        // 2. Upsert suggested policy under (contentTypeUid, actionName)
+        try {
+          const sp = form.suggestedPolicy || {};
+          const policyKey = sp.key || 'recorded';
+          const uid = `${form.contentTypeUid}.${form.actionName}.${policyKey}`;
+          const policyData = {
+            uid,
+            key: policyKey,
+            contentTypeUid: form.contentTypeUid,
+            actionName: form.actionName,
+            description: form.description || null,
+            isActive: Boolean(isActive),
+            query: sp.query || {},
+            filters: sp.filters || {},
+            body: sp.body || {},
+            resource: { id: resourceIdByCtUid[form.contentTypeUid] },
+          };
+          if (grantIds.length) policyData.grants = grantIds;
+
+          const existingPolicy = await strapi.db.query(POL_UID).findOne({ where: { uid } });
+          if (existingPolicy) {
+            if (overwrite) {
+              await strapi.db.query(POL_UID).update({ where: { id: existingPolicy.id }, data: policyData });
+              results.policies.updated++;
+            } else {
+              results.policies.skipped++;
+            }
+          } else {
+            await strapi.db.query(POL_UID).create({ data: policyData });
+            results.policies.created++;
+          }
+        } catch (err) {
+          results.policies.errors.push({ key: entry.recordKey, error: err.message });
         }
       }
 

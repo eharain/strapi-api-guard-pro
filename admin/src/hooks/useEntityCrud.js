@@ -24,8 +24,9 @@ export function useEntityCrud({ activeTab, notify, loadEntity, loadOverview }) {
         if (form.resource && typeof form.resource === 'object') form.resource = form.resource.id;
         if (form.role && typeof form.role === 'object') form.role = form.role.id;
         if (form.policy && typeof form.policy === 'object') form.policy = form.policy.id;
-        if (form.parentGroup && typeof form.parentGroup === 'object') form.parentGroup = form.parentGroup.id;
-        if (form.parentResource && typeof form.parentResource === 'object') form.parentResource = form.parentResource.id;
+        if (Array.isArray(form.grants)) {
+            form.grants = form.grants.map(g => (typeof g === 'object' ? g.id : g));
+        }
         setFormData(form);
         setPanelOpen(true);
     }, []);
@@ -44,8 +45,12 @@ export function useEntityCrud({ activeTab, notify, loadEntity, loadOverview }) {
             if (payload.resource) payload.resource = parseInt(payload.resource, 10);
             if (payload.role) payload.role = parseInt(payload.role, 10);
             if (payload.policy) payload.policy = parseInt(payload.policy, 10);
-            if (payload.parentGroup) payload.parentGroup = parseInt(payload.parentGroup, 10);
-            if (payload.parentResource) payload.parentResource = parseInt(payload.parentResource, 10);
+            if (Array.isArray(payload.grants)) {
+                payload.grants = payload.grants
+                    .map(g => (typeof g === 'object' ? g.id : g))
+                    .map(g => parseInt(g, 10))
+                    .filter(g => Number.isFinite(g));
+            }
 
             if (editingRecord) {
                 await put(apiEndpoint(`/entities/${activeTab}/${editingRecord.id}`), { data: payload });

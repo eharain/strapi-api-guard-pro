@@ -3,39 +3,23 @@ import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
-import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
-
-const MATCH_MODE_OPTIONS = ['header', 'query', 'both'];
+import { FormInput, FormTextarea, FormSwitch } from '../../components/ui.jsx';
 
 function DomainForm({ formData, onChange }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
             <Box paddingBottom={3}>
-                <FormInput label="Key" id="dom_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier (e.g., pos.products)" />
+                <FormInput label="Key" id="dom_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Stable identifier used in import/export (e.g. 'stock', 'crm')" />
             </Box>
             <Box paddingBottom={3}>
-                <FormInput label="Name" id="dom_name" name="name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required />
+                <FormInput label="Name" id="dom_name" name="name" value={formData.name || ''} onChange={e => set({ name: e.target.value })} />
             </Box>
             <Box paddingBottom={3}>
                 <FormTextarea label="Description" id="dom_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} />
             </Box>
             <Box paddingBottom={3}>
                 <FormSwitch label="Active" name="dom_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} />
-            </Box>
-            <Box paddingBottom={3}>
-                <FormSelect label="Match Mode" id="dom_matchMode" value={formData.matchMode || 'header'} onChange={v => set({ matchMode: v })}
-                    options={MATCH_MODE_OPTIONS.map(o => ({ value: o, label: o }))} />
-            </Box>
-            <Box paddingBottom={3}>
-                <FormInput label="Match Key" id="dom_matchKey" name="matchKey" value={formData.matchKey || 'x-app-name'} onChange={e => set({ matchKey: e.target.value })} />
-            </Box>
-            <Box paddingBottom={3}>
-                <FormSwitch label="Block Direct Access (enforce canonical URLs only)" name="dom_blockDirect" checked={formData.blockDirectAccess === true} onChange={v => set({ blockDirectAccess: v })} />
-            </Box>
-            <Box paddingBottom={3}>
-                <FormSelect label="Strapi Role Type" id="dom_roleType" value={formData.strapiRoleType || 'authenticated'} onChange={v => set({ strapiRoleType: v })}
-                    options={[{ value: 'authenticated', label: 'Authenticated' }, { value: 'public', label: 'Public' }]} />
             </Box>
         </>
     );

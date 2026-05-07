@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
 
-const ENTITIES = ['domains', 'resources', 'roles', 'policies', 'grants', 'groups'];
+const ENTITIES = ['domains', 'resources', 'roles', 'policies'];
 const apiEndpoint = (path) => `/api-guard-pro${path}`;
 
 export function useAppData() {
@@ -14,7 +14,6 @@ export function useAppData() {
     const [roleOptions, setRoleOptions] = useState([]);
     const [strapiTypes, setStrapiTypes] = useState([]);
     const [resourceCatalog, setResourceCatalog] = useState([]);
-    const [inspectData, setInspectData] = useState(null);
 
     const loadOverview = useCallback(async () => {
         try {
@@ -57,13 +56,6 @@ export function useAppData() {
         } catch { }
     }, [get]);
 
-    const loadInspect = useCallback(async () => {
-        try {
-            const { data } = await get(apiEndpoint('/inspect'));
-            setInspectData(data?.data || null);
-        } catch { }
-    }, [get]);
-
     return {
         overview,
         entityData,
@@ -71,13 +63,12 @@ export function useAppData() {
         roleOptions,
         strapiTypes,
         resourceCatalog,
-        inspectData,
         loadOverview,
         loadEntity,
         loadAllEntities,
         loadUsersAndRoles,
         loadStrapiTypes,
         loadResourceCatalog,
-        loadInspect,
     };
 }
+

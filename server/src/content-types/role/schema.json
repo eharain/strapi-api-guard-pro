@@ -5,7 +5,7 @@
     "singularName": "role",
     "pluralName": "roles",
     "displayName": "Role",
-    "description": "Permission role within a domain"
+    "description": "Named role referenced by resource policy grants"
   },
   "options": {
     "draftAndPublish": false
@@ -22,17 +22,12 @@
     "key": {
       "type": "string",
       "required": true,
-      "unique": true
+      "unique": true,
+      "regex": "^[a-z][a-z0-9_-]*$",
+      "description": "Stable identifier used in policy.grants (e.g. 'stock_manager')"
     },
     "name": {
-      "type": "string",
-      "required": true
-    },
-    "level": {
-      "type": "enumeration",
-      "enum": ["staff", "manager", "admin", "super-admin"],
-      "required": true,
-      "default": "staff"
+      "type": "string"
     },
     "description": {
       "type": "text"
@@ -44,12 +39,14 @@
     "domain": {
       "type": "relation",
       "relation": "manyToOne",
-      "target": "plugin::api-guard-pro.domain"
+      "target": "plugin::api-guard-pro.domain",
+      "inversedBy": "roles"
     },
-    "users": {
+    "policies": {
       "type": "relation",
       "relation": "manyToMany",
-      "target": "plugin::users-permissions.user"
+      "target": "plugin::api-guard-pro.policy",
+      "mappedBy": "grants"
     }
   }
 }

@@ -6,15 +6,13 @@ import ResourceFilters from './ResourceFilters.jsx';
 
 const PAGE_SIZE = 20;
 
-function ResourceList({ resources, domains, onEdit, onDelete }) {
-    const [filters, setFilters] = useState({ search: '', domain: '', type: '' });
+function ResourceList({ resources, onEdit, onDelete }) {
+    const [filters, setFilters] = useState({ search: '' });
     const [page, setPage] = useState(1);
 
     const filtered = useMemo(() => {
         return resources.filter(row => {
-            if (filters.search && !(row.key || row.displayName || '').toLowerCase().includes(filters.search.toLowerCase())) return false;
-            if (filters.domain && String(row.domain?.id) !== filters.domain) return false;
-            if (filters.type && row.type !== filters.type) return false;
+            if (filters.search && !(row.contentTypeUid || row.displayName || '').toLowerCase().includes(filters.search.toLowerCase())) return false;
             return true;
         });
     }, [resources, filters]);
@@ -30,7 +28,7 @@ function ResourceList({ resources, domains, onEdit, onDelete }) {
 
     return (
         <Box>
-            <ResourceFilters filters={filters} onFiltersChange={handleFiltersChange} domains={domains} />
+            <ResourceFilters filters={filters} onFiltersChange={handleFiltersChange} />
 
             <Typography variant="delta" paddingBottom={3}>
                 {filtered.length} of {resources.length} records

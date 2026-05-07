@@ -23,28 +23,31 @@ export function useResourceBuilder({ activeTab, setActiveTab, setResourceSubTab,
         const recordKey = item.recordKey || item.key;
         try {
             const { data } = await get(apiEndpoint(`/resource-recorder/to-resource/${encodeURIComponent(recordKey)}`));
-            const form = { ...getEmptyForm('resources'), ...(data?.data || {}) };
+            const payload = data?.data || {};
+            const form = {
+                ...getEmptyForm('resources'),
+                contentTypeUid: payload.contentTypeUid || '',
+                displayName: payload.displayName || payload.contentTypeUid || '',
+                description: payload.description || '',
+                isActive: payload.isActive !== false,
+            };
             openResourceForm(form);
         } catch {
-            // Fallback: use the item data directly if the endpoint fails
-            const form = { ...getEmptyForm('resources'), key: item.key, displayName: item.displayName, method: item.method || 'GET', pathPattern: item.pathPattern || item.path || '', type: item.type || 'standard' };
+            const form = {
+                ...getEmptyForm('resources'),
+                contentTypeUid: item.contentTypeUid || '',
+                displayName: item.displayName || item.contentTypeUid || '',
+            };
             openResourceForm(form);
         }
     }, [get, openResourceForm]);
 
-    const buildResourceFromCatalog = useCallback((contentType, action) => {
-        const sanitizedUid = String(contentType.uid || '').replace(/[^a-zA-Z0-9_.-]/g, '.');
-        const actionName = String(action.action || 'custom').toLowerCase();
+    const buildResourceFromCatalog = useCallback((contentType /*, action */) => {
         const form = {
             ...getEmptyForm('resources'),
-            key: `${sanitizedUid}.${actionName}`,
-            displayName: `${contentType.displayName} · ${action.method} ${action.path}`,
-            type: action.type || 'standard',
-            method: action.method || 'GET',
-            pathPattern: action.path || '',
             contentTypeUid: contentType.uid || '',
-            controllerAction: `${contentType.uid}.${action.action || 'custom'}`,
-            description: `Generated from builder catalog (${action.type || 'standard'})`
+            displayName: contentType.displayName || contentType.uid || '',
+            description: `Generated from builder catalog`,
         };
         openResourceForm(form);
     }, [openResourceForm]);

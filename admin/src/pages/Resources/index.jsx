@@ -240,9 +240,6 @@ function RecorderPanel({ recorder, actionLoading, onToggleEnabled, onRefresh, on
                                     ...item,
                                     key: item.recordKey,
                                     displayName: item.method + ' ' + item.path,
-                                    type: item.matched ? 'extended' : 'standard',
-                                    pathPattern: item.path,
-                                    requestRules: item.suggestedRequestRules || {}
                                 })}>Create Resource</Button>
                             </Flex>
                         </Box>
@@ -339,7 +336,7 @@ function Resources({
                             </Typography>
                             {editingRecord && (
                                 <Typography variant="pi" textColor="neutral500" style={{ fontFamily: 'monospace', fontSize: 11 }}>
-                                    #{editingRecord.id} · {editingRecord.key}
+                                    #{editingRecord.id} · {editingRecord.contentTypeUid}
                                 </Typography>
                             )}
                         </Box>
@@ -358,10 +355,7 @@ function Resources({
                     <ResourceForm
                         formData={formData}
                         onChange={onFormChange}
-                        domains={domains}
-                        resources={resources}
                         strapiTypes={strapiTypes}
-                        editingRecord={editingRecord}
                     />
                 </Box>
 
@@ -432,7 +426,6 @@ function Resources({
 
                         <ResourceList
                             resources={resources}
-                            domains={domains}
                             onEdit={(row) => {
                                 setShowCreateSection(false);
                                 setCreateMode(null);

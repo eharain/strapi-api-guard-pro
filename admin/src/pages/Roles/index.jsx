@@ -5,20 +5,14 @@ import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
 import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
 
-const LEVEL_OPTIONS = ['staff', 'manager', 'admin', 'super-admin'];
-
 function RoleForm({ formData, onChange, domains }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     return (
         <>
             <Box paddingBottom={3}><FormInput label="Key" id="rol_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
-            <Box paddingBottom={3}><FormInput label="Name" id="rol_name" name="name" value={formData.name || formData.displayName || ''} onChange={e => set({ name: e.target.value, displayName: e.target.value })} required /></Box>
+            <Box paddingBottom={3}><FormInput label="Name" id="rol_name" name="name" value={formData.name || ''} onChange={e => set({ name: e.target.value })} /></Box>
             <Box paddingBottom={3}><FormTextarea label="Description" id="rol_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
             <Box paddingBottom={3}><FormSwitch label="Active" name="rol_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
-            <Box paddingBottom={3}>
-                <FormSelect label="Level" id="rol_level" value={formData.level || 'staff'} onChange={v => set({ level: v })}
-                    options={LEVEL_OPTIONS.map(o => ({ value: o, label: o }))} />
-            </Box>
             <Box paddingBottom={3}>
                 <FormSelect label="Domain" id="rol_domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}
                     options={[{ value: '', label: 'None' }, ...domains.map(d => ({ value: String(d.id), label: d.key || d.name || `#${d.id}` }))]} />
@@ -28,14 +22,13 @@ function RoleForm({ formData, onChange, domains }) {
 }
 
 function Roles({ roles, domains, panelOpen, editingRecord, formData, onFormChange, onOpenNew, onEdit, onDelete, onSubmitForm, onCancelForm, actionLoading }) {
-    const [filters, setFilters] = React.useState({ search: '', domain: '', level: '' });
+    const [filters, setFilters] = React.useState({ search: '', domain: '' });
     const [page, setPage] = React.useState(1);
     const PAGE_SIZE = 20;
 
     const filtered = React.useMemo(() => roles.filter(r => {
         if (filters.search && !(r.key || r.name || '').toLowerCase().includes(filters.search.toLowerCase())) return false;
         if (filters.domain && String(r.domain?.id) !== filters.domain) return false;
-        if (filters.level && r.level !== filters.level) return false;
         return true;
     }), [roles, filters]);
 
@@ -45,7 +38,6 @@ function Roles({ roles, domains, panelOpen, editingRecord, formData, onFormChang
 
     const extraFilters = [
         { key: 'domain', label: 'Domain', options: domains.map(d => ({ value: String(d.id), label: d.key || d.name || `#${d.id}` })) },
-        { key: 'level', label: 'Level', options: LEVEL_OPTIONS.map(l => ({ value: l, label: l })) },
     ];
 
     return (
@@ -55,7 +47,7 @@ function Roles({ roles, domains, panelOpen, editingRecord, formData, onFormChang
                     <Typography variant="delta">{filtered.length} of {roles.length} records</Typography>
                     <Button onClick={onOpenNew}>+ New Role</Button>
                 </Flex>
-                <FilterBar filters={filters} onFiltersChange={f => { setFilters(f); setPage(1); }} extraFilters={extraFilters} hasActiveFilters={Object.values(filters).some(Boolean)} onClear={() => setFilters({ search: '', domain: '', level: '' })} />
+                <FilterBar filters={filters} onFiltersChange={f => { setFilters(f); setPage(1); }} extraFilters={extraFilters} hasActiveFilters={Object.values(filters).some(Boolean)} onClear={() => setFilters({ search: '', domain: '' })} />
                 {paged.length === 0 ? (
                     <Box padding={6} background="neutral100" style={{ borderRadius: 8, textAlign: 'center' }}>
                         <Typography textColor="neutral500">{roles.length === 0 ? 'No roles yet.' : 'No records match your filters.'}</Typography>
