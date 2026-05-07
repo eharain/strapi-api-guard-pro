@@ -26,6 +26,7 @@ import Grants from './Grants/index.jsx';
 import Groups from './Groups/index.jsx';
 import Users from './Users/index.jsx';
 import AccessControl from './AccessControl/index.jsx';
+import DataTransfer from './DataTransfer/index.jsx';
 
 const TABS = [
     { key: 'access-control', label: '🌳 Access Control' },
@@ -36,7 +37,8 @@ const TABS = [
     { key: 'grants', label: 'Grants' },
     { key: 'groups', label: 'Groups' },
     { key: 'assignments', label: 'User Assignments' },
-    { key: 'inspect', label: 'Inspect' }
+    { key: 'inspect', label: 'Inspect' },
+    { key: 'data-transfer', label: '⇅ Import / Export' }
 ];
 
 export default function HomePage() {
@@ -345,6 +347,9 @@ export default function HomePage() {
                                 </Box>
                             )}
                         </Box>
+                    )}
+                    {activeTab === 'data-transfer' && (
+                        <DataTransfer />
                     )}
                 </Box>
             </Box>

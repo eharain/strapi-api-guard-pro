@@ -133,5 +133,19 @@ module.exports = [
     handler: 'admin.seedFromMetadata',
     info: { type: 'admin' },
     config: { type: 'admin', auth: false }
+  },
+  {
+    method: 'GET',
+    path: '/data-transfer/export',
+    handler: 'admin.exportData',
+    info: { type: 'admin' },
+    config: { type: 'admin', auth: false }
+  },
+  {
+    method: 'POST',
+    path: '/data-transfer/import',
+    handler: 'admin.importData',
+    info: { type: 'admin' },
+    config: { type: 'admin', auth: false }
   }
 ];

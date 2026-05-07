@@ -10,4 +10,6 @@ export const ENDPOINTS = {
   CLEAR_CACHE: `${API_BASE}/clear-cache`,
   RESOURCE_RECORDER: `${API_BASE}/resource-recorder`,
   RECORDER_LOGS: `${API_BASE}/resource-recorder/logs`,
+  DATA_EXPORT: `${API_BASE}/data-transfer/export`,
+  DATA_IMPORT: `${API_BASE}/data-transfer/import`,
 };

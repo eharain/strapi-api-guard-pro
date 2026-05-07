@@ -10,6 +10,7 @@ const filterBuilder = require('./filter-builder');
 const setupService = require('./setup');
 const aliasResolver = require('./alias-resolver');
 const resourceRecorder = require('./resource-recorder');
+const dataTransfer = require('./data-transfer');
 
 module.exports = {
   'context-resolver': contextResolver,
@@ -22,4 +23,5 @@ module.exports = {
   'setup': setupService,
   'alias-resolver': aliasResolver,
   'resource-recorder': resourceRecorder,
+  'data-transfer': dataTransfer,
 };

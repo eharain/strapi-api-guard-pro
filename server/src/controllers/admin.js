@@ -583,5 +583,33 @@ module.exports = ({ strapi }) => ({
     }
 
     ctx.send({ data: results });
-  }
+  },
+
+  async exportData(ctx) {
+    try {
+      const service = strapi.service('plugin::api-guard-pro.data-transfer');
+      const data = await service.exportData();
+      ctx.set('Content-Disposition', `attachment; filename="api-guard-pro-export-${Date.now()}.json"`);
+      ctx.set('Content-Type', 'application/json');
+      ctx.send(data);
+    } catch (err) {
+      strapi.log.error('[api-guard-pro] exportData error:', err.message);
+      ctx.throw(500, err.message);
+    }
+  },
+
+  async importData(ctx) {
+    try {
+      const { data: payload, clean = false } = ctx.request.body || {};
+      if (!payload || typeof payload !== 'object') {
+        return ctx.badRequest('Missing or invalid "data" field in request body');
+      }
+      const service = strapi.service('plugin::api-guard-pro.data-transfer');
+      const results = await service.importData(payload, !!clean);
+      ctx.send({ results });
+    } catch (err) {
+      strapi.log.error('[api-guard-pro] importData error:', err.message);
+      ctx.throw(500, err.message);
+    }
+  },
 });
