@@ -186,7 +186,7 @@ export default function HomePage() {
                 {/* Tab content */}
                 <Box paddingTop={4}>
                     {activeTab === 'domains' && (
-                        <Domains {...commonTabProps} domains={domains} />
+                        <Domains {...commonTabProps} domains={domains} roles={roles} />
                     )}
 
                     {activeTab === 'resources' && (
@@ -195,6 +195,8 @@ export default function HomePage() {
                             resources={resources}
                             domains={domains}
                             strapiTypes={strapiTypes}
+                            policies={policies}
+                            roles={roles}
                             resourceCatalog={resourceCatalog}
                             recorder={recorder}
                             subTab={resourceSubTab}
@@ -207,6 +209,7 @@ export default function HomePage() {
                             onCreateFromSuggestion={buildResourceFromSuggestion}
                             onRefreshCatalog={loadResourceCatalog}
                             onUseFromCatalog={buildResourceFromCatalog}
+                            onRefreshPolicies={() => loadEntity('policies')}
                         />
                     )}
 
@@ -215,7 +218,7 @@ export default function HomePage() {
                     )}
 
                     {activeTab === 'policies' && (
-                        <Policies {...commonTabProps} policies={policies} resources={resources} roles={roles} />
+                        <Policies {...commonTabProps} policies={policies} resources={resources} roles={roles} strapiTypes={strapiTypes} />
                     )}
 
                     {activeTab === 'data-transfer' && (

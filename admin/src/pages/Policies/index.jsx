@@ -3,7 +3,12 @@ import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
-import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
+import { FormInput, FormTextarea, FormSelect, FormSwitch, tokens } from '../../components/ui.jsx';
+import { FieldsPicker } from '../../components/QueryBuilders/FieldsPicker.jsx';
+import { FiltersBuilder } from '../../components/QueryBuilders/FiltersBuilder.jsx';
+import { SortBuilder } from '../../components/QueryBuilders/SortBuilder.jsx';
+import { PopulateBuilder } from '../../components/QueryBuilders/PopulateBuilder.jsx';
+import { PaginationEditor } from '../../components/QueryBuilders/PaginationEditor.jsx';
 
 function safeParseJson(text, fallback) {
     if (typeof text !== 'string') return fallback;
@@ -18,7 +23,34 @@ function jsonToText(value) {
     try { return JSON.stringify(value, null, 2); } catch { return ''; }
 }
 
-function PolicyForm({ formData, onChange, resources, roles }) {
+export function SubSection({ title, hint, children }) {
+    const [open, setOpen] = React.useState(false);
+    return (
+        <Box style={{ border: `1px solid ${tokens.border}`, borderRadius: 6, marginBottom: 8 }}>
+            <Flex
+                alignItems="center"
+                justifyContent="space-between"
+                style={{ padding: '6px 10px', cursor: 'pointer', background: tokens.surfaceBg, borderRadius: open ? '6px 6px 0 0' : 6 }}
+                onClick={() => setOpen(v => !v)}
+            >
+                <Box>
+                    <Typography variant="pi" fontWeight="semiBold">{title}</Typography>
+                    {hint && !open && (
+                        <Typography variant="pi" textColor="neutral400" style={{ marginLeft: 6 }}>{hint}</Typography>
+                    )}
+                </Box>
+                <span style={{ fontSize: 11, color: '#888' }}>{open ? '▲' : '▼'}</span>
+            </Flex>
+            {open && (
+                <Box style={{ padding: '10px 10px 8px' }}>
+                    {children}
+                </Box>
+            )}
+        </Box>
+    );
+}
+
+export function PolicyForm({ formData, onChange, resources, roles, attributes, allTypes }) {
     const set = (patch) => onChange({ ...formData, ...patch });
     const grantIds = Array.isArray(formData.grants)
         ? formData.grants.map(g => String(typeof g === 'object' ? g.id : g))
@@ -29,6 +61,10 @@ function PolicyForm({ formData, onChange, resources, roles }) {
         const next = grantIds.includes(id) ? grantIds.filter(g => g !== id) : [...grantIds, id];
         set({ grants: next });
     };
+
+    // query sub-fields
+    const query = (formData.query && typeof formData.query === 'object') ? formData.query : {};
+    const setQuery = (patch) => set({ query: { ...query, ...patch } });
 
     return (
         <>
@@ -49,21 +85,71 @@ function PolicyForm({ formData, onChange, resources, roles }) {
             <Box paddingBottom={3}><FormInput label="Action Name" id="pol_action" name="actionName" value={formData.actionName || ''} onChange={e => set({ actionName: e.target.value })} required hint="e.g. product.find" /></Box>
             <Box paddingBottom={3}><FormTextarea label="Description" id="pol_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
             <Box paddingBottom={3}><FormSwitch label="Active" name="pol_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
+
+            {/* ── Query (read-side shaping) ── */}
             <Box paddingBottom={3}>
-                <FormTextarea label="Query (JSON)" id="pol_query" value={jsonToText(formData.query)}
-                    onChange={e => set({ query: safeParseJson(e.target.value, formData.query) })}
-                    hint="Read-side shaping: filters/populate/fields/sort/pagination" />
+                <Typography variant="pi" fontWeight="bold" paddingBottom={2} style={{ display: 'block' }}>
+                    Query — Read-side Shaping
+                </Typography>
+                <SubSection title="Fields" hint="Restrict which scalar fields are returned">
+                    <FieldsPicker
+                        attributes={attributes}
+                        value={Array.isArray(query.fields) ? query.fields : []}
+                        onChange={fields => setQuery({ fields: fields.length > 0 ? fields : undefined })}
+                    />
+                </SubSection>
+                <SubSection title="Filters" hint="Row-level read filters ($and/$or conditions)">
+                    <FiltersBuilder
+                        attributes={attributes}
+                        allTypes={allTypes}
+                        value={query.filters || {}}
+                        onChange={filters => setQuery({ filters: filters && Object.keys(filters).length > 0 ? filters : undefined })}
+                    />
+                </SubSection>
+                <SubSection title="Sort" hint="Default sort order">
+                    <SortBuilder
+                        attributes={attributes}
+                        value={Array.isArray(query.sort) ? query.sort : (query.sort ? [query.sort] : [])}
+                        onChange={sort => setQuery({ sort: sort.length > 0 ? sort : undefined })}
+                    />
+                </SubSection>
+                <SubSection title="Populate" hint="Relations and components to include">
+                    <PopulateBuilder
+                        attributes={attributes}
+                        allTypes={allTypes}
+                        value={query.populate || {}}
+                        onChange={populate => setQuery({ populate: populate && Object.keys(populate).length > 0 ? populate : undefined })}
+                    />
+                </SubSection>
+                <SubSection title="Pagination" hint="Default page / offset limits">
+                    <PaginationEditor
+                        value={query.pagination || {}}
+                        onChange={pagination => setQuery({ pagination: pagination && Object.keys(pagination).length > 0 ? pagination : undefined })}
+                    />
+                </SubSection>
             </Box>
+
+            {/* ── Filters (write-side row scoping) ── */}
             <Box paddingBottom={3}>
-                <FormTextarea label="Filters (JSON)" id="pol_filters" value={jsonToText(formData.filters)}
-                    onChange={e => set({ filters: safeParseJson(e.target.value, formData.filters) })}
-                    hint="Write-side row scoping" />
+                <Typography variant="pi" fontWeight="bold" paddingBottom={2} style={{ display: 'block' }}>
+                    Filters — Write-side Row Scoping
+                </Typography>
+                <FiltersBuilder
+                    attributes={attributes}
+                    allTypes={allTypes}
+                    value={formData.filters || {}}
+                    onChange={filters => set({ filters: filters && Object.keys(filters).length > 0 ? filters : undefined })}
+                />
             </Box>
+
+            {/* ── Body (write-side overrides) ── */}
             <Box paddingBottom={3}>
                 <FormTextarea label="Body (JSON)" id="pol_body" value={jsonToText(formData.body)}
                     onChange={e => set({ body: safeParseJson(e.target.value, formData.body) })}
                     hint="Write-side body overrides / forced values" />
             </Box>
+
+            {/* ── Grants (Roles) ── */}
             <Box paddingBottom={3}>
                 <Typography variant="pi" fontWeight="bold">Grants (Roles)</Typography>
                 <Box paddingTop={2} style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #eee', borderRadius: 4, padding: 8 }}>
@@ -88,10 +174,23 @@ function PolicyForm({ formData, onChange, resources, roles }) {
     );
 }
 
-function Policies({ policies, resources, roles = [], panelOpen, editingRecord, formData, onFormChange, onOpenNew, onEdit, onDelete, onSubmitForm, onCancelForm, actionLoading }) {
+function Policies({ policies, resources, roles = [], strapiTypes = [], panelOpen, editingRecord, formData, onFormChange, onOpenNew, onEdit, onDelete, onSubmitForm, onCancelForm, actionLoading }) {
     const [filters, setFilters] = React.useState({ search: '', resource: '', actionName: '' });
     const [page, setPage] = React.useState(1);
     const PAGE_SIZE = 20;
+
+    // Derive attributes and allTypes from strapiTypes + selected contentTypeUid
+    const allTypes = React.useMemo(() => {
+        const map = new Map();
+        strapiTypes.forEach(ct => map.set(ct.uid, ct));
+        return map;
+    }, [strapiTypes]);
+
+    const attributes = React.useMemo(() => {
+        const uid = formData?.contentTypeUid;
+        if (!uid) return [];
+        return allTypes.get(uid)?.attributes || [];
+    }, [formData?.contentTypeUid, allTypes]);
 
     const filtered = React.useMemo(() => policies.filter(r => {
         const hay = `${r.uid || ''} ${r.key || ''} ${r.contentTypeUid || ''} ${r.actionName || ''}`.toLowerCase();
@@ -134,7 +233,7 @@ function Policies({ policies, resources, roles = [], panelOpen, editingRecord, f
             {panelOpen && (
                 <Box background="neutral0" style={{ width: 450, marginLeft: 16, borderRadius: 8, border: '1px solid #e8e8e8', padding: 16 }}>
                     <Typography variant="beta" paddingBottom={4}>{editingRecord ? 'Edit Policy' : 'Create New Policy'}</Typography>
-                    <PolicyForm formData={formData} onChange={onFormChange} resources={resources} roles={roles} />
+                    <PolicyForm formData={formData} onChange={onFormChange} resources={resources} roles={roles} attributes={attributes} allTypes={allTypes} />
                     <Flex gap={2} justifyContent="flex-end" paddingTop={4}>
                         <Button variant="tertiary" onClick={onCancelForm} disabled={actionLoading}>Cancel</Button>
                         <Button onClick={onSubmitForm} loading={actionLoading}>{editingRecord ? 'Update' : 'Create'}</Button>
