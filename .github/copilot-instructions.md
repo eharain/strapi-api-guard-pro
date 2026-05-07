@@ -13,6 +13,7 @@
 - Define and document preconfigured query/filter/populate/fields rules applied by the Resource.
 - Document automatic request body augmentation and restrictions applied by the Resource (what is added, removed, or validated).
 - For the plugin UI, make the import/export workflow file-based only; do not implement textarea-based import.
+- Simplify plugin database schemas to align with the compact import/export layout: model domains, roles, and resources for file-based interchange, and embed policies/grants-per-action within resource records to support compact import/export.
 
 ## Frontend & Accessibility
 - Ensure every form field has its own associated input label (use `label` with matching `for`/`id` or wrap the input in the `label`).

@@ -1,0 +1,60 @@
+{
+  "domains": {
+    "stock": { "roles": [ "stock_manager", "sales_user" ] },
+    "crm": { "roles": [ "sales_manager", "sales_user" ] }
+  },
+
+  "roles": {
+    "stock_manager": {},
+    "sales_user": {},
+    "sales_manager": {},
+    "admin": {}
+  },
+
+  "resources": {
+    "api::product.product": {
+
+      "product.find": {
+        "policies": [
+          {
+            "key": "branchOwn",
+            "grants": [ "stock_manager", "sales_user" ],
+
+            "query": {
+              "filters": { "branch": { "$eq": "$user.branch" } },
+
+              "populate": {                "brand": true,                "category": true             },
+
+              "fields": [ "id", "name", "price", "barcode" ],
+              "sort": [ "name:asc" ],
+
+              "pagination": { "pageSize": 50 }
+            }
+          },
+
+          {
+            "key": "hqAccess",
+            "grants": [ "admin" ],
+
+            "query": { "populate": "*" }
+          }
+        ]
+      },
+
+      "product.update": {
+        "policies": [
+          {
+            "key": "managerOnly",
+            "grants": [ "stock_manager" ],
+
+            "filters": { "branch": { "$eq": "$user.branch" } },
+
+            "body": {
+              "updatedBy": "$user.id"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

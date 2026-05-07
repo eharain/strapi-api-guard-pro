@@ -190,7 +190,7 @@ export default function DataTransfer() {
           <Box>
             <Typography variant="beta">📤 Export</Typography>
             <Typography variant="pi" textColor="neutral500" style={{ display: 'block', marginTop: 2 }}>
-              Downloads all domains, resources, roles, groups, policies and grants as a portable JSON file.
+              Downloads domains, roles, and resources grouped by content type/actions. Policies and grants are embedded per action.
             </Typography>
           </Box>
           <Flex gap={2}>
@@ -222,7 +222,7 @@ export default function DataTransfer() {
           <Typography variant="beta">📥 Import</Typography>
           <Typography variant="pi" textColor="neutral500" style={{ display: 'block', marginTop: 2 }}>
             Select a previously exported JSON file. Choose <strong>Merge</strong> to upsert without touching existing data,
-            or <strong>Clean</strong> to wipe all plugin data before importing.
+            or <strong>Clean</strong> to wipe existing domains/roles/resources and rebuild policies/grants from action mappings.
           </Typography>
         </Box>
 
