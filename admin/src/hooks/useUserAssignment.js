@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useFetchClient } from '@strapi/strapi/admin';
 
 const apiEndpoint = (path) => `/api-guard-pro${path}`;
@@ -10,11 +10,17 @@ export function useUserAssignment({ users, notify, loadUsersAndRoles }) {
     const [userSearch, setUserSearch] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
 
+    // Re-sync selectedRoleIds whenever users data refreshes (e.g. after save/reload)
+    // or when the selected user changes, so checkboxes always reflect server state.
+    useEffect(() => {
+        if (!selectedUserId) return;
+        const user = users.find(u => String(u.id) === String(selectedUserId));
+        setSelectedRoleIds((user?.api_guard_roles || []).map(r => String(r.id)));
+    }, [users, selectedUserId]);
+
     const selectUser = useCallback((value) => {
         setSelectedUserId(value);
-        const user = users.find(u => String(u.id) === String(value));
-        setSelectedRoleIds((user?.api_guard_roles || []).map(r => String(r.id)));
-    }, [users]);
+    }, []);
 
     const toggleRole = useCallback((roleId) => {
         setSelectedRoleIds(prev =>

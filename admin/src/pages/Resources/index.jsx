@@ -278,6 +278,13 @@ function RecorderPanel({ recorder, actionLoading, onToggleEnabled, onRefresh, on
 // ── Standard Strapi actions for a content type ────────────────────────────────
 const STRAPI_ACTIONS = ['find', 'findOne', 'create', 'update', 'delete'];
 
+const normalizeActionName = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const parts = raw.split('.');
+    return (parts[parts.length - 1] || '').trim();
+};
+
 const ACTION_COLORS = {
     find:    { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9' },
     findOne: { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
@@ -376,11 +383,23 @@ function InlinePolicyEditor({ resource, action, existingPolicy, roles, strapiTyp
 /**
  * Per-resource expandable policies section.
  * Used both in the list view (per card) and in the edit panel.
+ *
+ * For each standard action shows:
+ *   - attached policy (clickable to expand details + grants)
+ *   - quick Activate / Deactivate toggle
+ *   - Delete button
+ *   - If no policy: "+ Create Policy" AND a list of existing unattached
+ *     policies that share the same actionName (so you can assign one).
  */
 function ResourcePoliciesPanel({ resource, policies, roles, strapiTypes, onRefresh }) {
-    const { del } = useFetchClient();
-    const [editing, setEditing] = useState(null); // action name or null
+    const { put, del } = useFetchClient();
+    const [editing, setEditing] = useState(null);   // action name being inline-edited
+    const [creating, setCreating] = useState(null); // action name being inline-created
+    const [expanded, setExpanded] = useState(null);  // action name whose policy details are shown
     const [deleting, setDeleting] = useState(null);
+    const [toggling, setToggling] = useState(null);
+    const [linking, setLinking] = useState(null);    // action name whose "assign existing" picker is open
+    const [saving, setSaving] = useState(null);
 
     const allTypes = useMemo(() => {
         const map = new Map();
@@ -393,14 +412,31 @@ function ResourcePoliciesPanel({ resource, policies, roles, strapiTypes, onRefre
         return uid ? (allTypes.get(uid)?.attributes || []) : [];
     }, [resource.contentTypeUid, allTypes]);
 
+    // Map action → attached policy for THIS resource
     const policiesByAction = useMemo(() => {
         const map = {};
         STRAPI_ACTIONS.forEach(a => { map[a] = null; });
         policies.forEach(p => {
             if (String(p.resource?.id ?? p.resource) === String(resource.id)) {
-                const a = p.actionName;
+                const a = normalizeActionName(p.actionName);
                 if (a) map[a] = p;
             }
+        });
+        return map;
+    }, [policies, resource.id]);
+
+    // For each action, collect existing policies NOT attached to this resource
+    // that have the same actionName — candidate "reuse" policies
+    const candidatesByAction = useMemo(() => {
+        const map = {};
+        STRAPI_ACTIONS.forEach(a => { map[a] = []; });
+        policies.forEach(p => {
+            const rid = p.resource?.id ?? p.resource;
+            // Only show candidates already linked to this same resource.
+            // Never suggest policies from other resources.
+            if (String(rid) !== String(resource.id)) return;
+            const a = normalizeActionName(p.actionName);
+            if (a && map[a] !== undefined) map[a].push(p);
         });
         return map;
     }, [policies, resource.id]);
@@ -415,6 +451,26 @@ function ResourcePoliciesPanel({ resource, policies, roles, strapiTypes, onRefre
         finally { setDeleting(null); }
     };
 
+    const handleToggleActive = async (policy) => {
+        setToggling(policy.id);
+        try {
+            await put(`/api-guard-pro/entities/policies/${policy.id}`, { data: { isActive: policy.isActive === false } });
+            onRefresh();
+        } catch { }
+        finally { setToggling(null); }
+    };
+
+    // Link an existing policy to this resource by updating its resource field
+    const handleLinkExisting = async (policy, action) => {
+        setSaving(action);
+        try {
+            await put(`/api-guard-pro/entities/policies/${policy.id}`, { data: { resource: resource.id, actionName: action } });
+            setLinking(null);
+            onRefresh();
+        } catch { }
+        finally { setSaving(null); }
+    };
+
     return (
         <Box>
             <Typography variant="pi" style={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10, fontWeight: 700, color: '#888', display: 'block', marginBottom: 8 }}>
@@ -422,58 +478,217 @@ function ResourcePoliciesPanel({ resource, policies, roles, strapiTypes, onRefre
             </Typography>
             {STRAPI_ACTIONS.map(action => {
                 const policy = policiesByAction[action];
+                const candidates = candidatesByAction[action] || [];
                 const isEditingThis = editing === action;
+                const isCreatingThis = creating === action;
+                const isExpanded = expanded === action;
+                const isLinking = linking === action;
+
                 return (
                     <Box key={action} style={{ marginBottom: 6 }}>
+                        {/* ── Row ── */}
                         <Flex
                             alignItems="center"
                             gap={2}
                             style={{
                                 padding: '6px 10px',
-                                borderRadius: 6,
-                                background: policy ? (policy.isActive !== false ? '#f0fff4' : '#fafafa') : '#fff8f8',
-                                border: `1px solid ${policy ? (policy.isActive !== false ? '#b2dfdb' : '#e0e0e0') : '#fddcdc'}`,
+                                borderRadius: isExpanded || isEditingThis || isLinking ? '6px 6px 0 0' : 6,
+                                background: policy
+                                    ? (policy.isActive !== false ? '#f0fff4' : '#fafafa')
+                                    : '#fff8f8',
+                                border: `1px solid ${policy
+                                    ? (policy.isActive !== false ? '#b2dfdb' : '#e0e0e0')
+                                    : '#fddcdc'}`,
+                                borderBottom: isExpanded || isEditingThis || isLinking
+                                    ? 'none'
+                                    : undefined,
                             }}
                         >
                             <ActionBadge action={action} />
+
                             {policy ? (
                                 <>
-                                    <Box style={{ flex: 1, minWidth: 0 }}>
-                                        <Typography variant="pi" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                                            {policy.key || policy.uid || `#${policy.id}`}
-                                        </Typography>
-                                        {policy.description && (
-                                            <Typography variant="pi" textColor="neutral400" style={{ marginLeft: 4 }}>— {policy.description}</Typography>
-                                        )}
+                                    {/* Clickable policy key — toggles detail view */}
+                                    <Box
+                                        style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                                        onClick={() => setExpanded(isExpanded ? null : action)}
+                                    >
+                                        <Flex gap={2} alignItems="center">
+                                            <Typography variant="pi" style={{ fontFamily: 'monospace', fontWeight: 600, color: tokens.primary }}>
+                                                {policy.key || policy.uid || `#${policy.id}`}
+                                            </Typography>
+                                            {policy.description && (
+                                                <Typography variant="pi" textColor="neutral400" style={{ fontSize: 11 }}>— {policy.description}</Typography>
+                                            )}
+                                            <span style={{ fontSize: 10, color: '#aaa' }}>{isExpanded ? '▲' : '▼'}</span>
+                                        </Flex>
                                     </Box>
-                                    <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: policy.isActive !== false ? '#e8f5e9' : '#f0f0f0', color: policy.isActive !== false ? '#2e7d32' : '#aaa', border: `1px solid ${policy.isActive !== false ? '#a5d6a7' : '#ddd'}` }}>
+
+                                    {/* Active badge */}
+                                    <span style={{
+                                        fontSize: 10, padding: '1px 5px', borderRadius: 3, flexShrink: 0,
+                                        background: policy.isActive !== false ? '#e8f5e9' : '#f0f0f0',
+                                        color: policy.isActive !== false ? '#2e7d32' : '#aaa',
+                                        border: `1px solid ${policy.isActive !== false ? '#a5d6a7' : '#ddd'}`,
+                                    }}>
                                         {policy.isActive !== false ? 'active' : 'inactive'}
                                     </span>
-                                    <Button size="S" variant="secondary" onClick={() => setEditing(isEditingThis ? null : action)}>
+
+                                    {/* Activate / Deactivate */}
+                                    <Button
+                                        size="S"
+                                        variant="tertiary"
+                                        loading={toggling === policy.id}
+                                        onClick={() => handleToggleActive(policy)}
+                                    >
+                                        {policy.isActive !== false ? 'Deactivate' : 'Activate'}
+                                    </Button>
+
+                                    <Button size="S" variant="secondary" onClick={() => {
+                                        setExpanded(null);
+                                        setLinking(null);
+                                        setCreating(null);
+                                        setEditing(isEditingThis ? null : action);
+                                    }}>
                                         {isEditingThis ? 'Close' : 'Edit'}
                                     </Button>
-                                    <Button size="S" variant="danger-light" loading={deleting === policy.id} onClick={() => handleDelete(policy)}>Del</Button>
+                                    <Button size="S" onClick={() => {
+                                        setExpanded(null);
+                                        setLinking(null);
+                                        setEditing(null);
+                                        setCreating(isCreatingThis ? null : action);
+                                    }}>
+                                        {isCreatingThis ? 'Close' : '+ Create Policy'}
+                                    </Button>
+                                    <Button size="S" variant="danger-light" loading={deleting === policy.id} onClick={() => handleDelete(policy)}>
+                                        Delete
+                                    </Button>
                                 </>
                             ) : (
                                 <>
-                                    <Typography variant="pi" textColor="neutral400" style={{ flex: 1, fontStyle: 'italic' }}>No policy</Typography>
-                                    <Button size="S" onClick={() => setEditing(isEditingThis ? null : action)}>
-                                        {isEditingThis ? 'Close' : '+ Create Policy'}
+                                    <Typography variant="pi" textColor="neutral400" style={{ flex: 1, fontStyle: 'italic' }}>
+                                        No policy — action is unguarded
+                                    </Typography>
+                                    {candidates.length > 0 && (
+                                        <Button size="S" variant="tertiary" onClick={() => {
+                                            setEditing(null);
+                                            setCreating(null);
+                                            setLinking(isLinking ? null : action);
+                                        }}>
+                                            {isLinking ? 'Close' : `Assign existing (${candidates.length})`}
+                                        </Button>
+                                    )}
+                                    <Button size="S" onClick={() => {
+                                        setLinking(null);
+                                        setEditing(null);
+                                        setCreating(isCreatingThis ? null : action);
+                                    }}>
+                                        {isCreatingThis ? 'Close' : '+ Create Policy'}
                                     </Button>
                                 </>
                             )}
                         </Flex>
-                        {isEditingThis && (
+
+                        {/* ── Expanded detail: grants + full policy info ── */}
+                        {isExpanded && policy && (
+                            <Box style={{
+                                border: `1px solid ${policy.isActive !== false ? '#b2dfdb' : '#e0e0e0'}`,
+                                borderTop: 'none',
+                                borderRadius: '0 0 6px 6px',
+                                padding: '10px 14px',
+                                background: '#f9fffc',
+                            }}>
+                                <Flex gap={6} wrap="wrap" paddingBottom={2}>
+                                    {policy.uid && (
+                                        <Box>
+                                            <Typography variant="pi" style={{ fontSize: 10, textTransform: 'uppercase', color: '#aaa', fontWeight: 700 }}>UID</Typography>
+                                            <Typography variant="pi" style={{ fontFamily: 'monospace' }}>{policy.uid}</Typography>
+                                        </Box>
+                                    )}
+                                    <Box>
+                                        <Typography variant="pi" style={{ fontSize: 10, textTransform: 'uppercase', color: '#aaa', fontWeight: 700 }}>Content Type</Typography>
+                                        <Typography variant="pi" style={{ fontFamily: 'monospace' }}>{policy.contentTypeUid || '—'}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="pi" style={{ fontSize: 10, textTransform: 'uppercase', color: '#aaa', fontWeight: 700 }}>Action</Typography>
+                                        <Typography variant="pi" style={{ fontFamily: 'monospace' }}>{policy.actionName || '—'}</Typography>
+                                    </Box>
+                                </Flex>
+                                {/* Grants (roles) */}
+                                <Box paddingTop={1}>
+                                    <Typography variant="pi" style={{ fontSize: 10, textTransform: 'uppercase', color: '#aaa', fontWeight: 700, display: 'block', marginBottom: 4 }}>
+                                        Granted Roles
+                                    </Typography>
+                                    {(policy.grants || []).length === 0 ? (
+                                        <Typography variant="pi" textColor="neutral400">No roles granted — policy is unreachable.</Typography>
+                                    ) : (
+                                        <Flex gap={2} wrap="wrap">
+                                            {(policy.grants || []).map(g => {
+                                                const role = typeof g === 'object' ? g : (roles || []).find(r => String(r.id) === String(g));
+                                                return (
+                                                    <span key={g?.id ?? g} style={{
+                                                        fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                                                        background: `${tokens.primary}11`, color: tokens.primary,
+                                                        border: `1px solid ${tokens.primary}33`, fontFamily: 'monospace',
+                                                    }}>
+                                                        {role?.key || role?.name || `#${g?.id ?? g}`}
+                                                    </span>
+                                                );
+                                            })}
+                                        </Flex>
+                                    )}
+                                </Box>
+                            </Box>
+                        )}
+
+                        {/* ── Assign existing policy picker ── */}
+                        {isLinking && !policy && (
+                            <Box style={{
+                                border: '1px solid #e0e0f0',
+                                borderTop: 'none',
+                                borderRadius: '0 0 6px 6px',
+                                padding: '10px 14px',
+                                background: '#fafafe',
+                            }}>
+                                <Typography variant="pi" fontWeight="semiBold" style={{ display: 'block', marginBottom: 8 }}>
+                                    Existing policies with action <code style={{ fontFamily: 'monospace' }}>{action}</code> — click to assign:
+                                </Typography>
+                                {candidates.map(c => (
+                                    <Flex key={c.id} justifyContent="space-between" alignItems="center" gap={2}
+                                        style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #e8e8e8', marginBottom: 4, background: '#fff' }}>
+                                        <Box style={{ minWidth: 0 }}>
+                                            <Typography variant="pi" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                                                {c.key || c.uid || `#${c.id}`}
+                                            </Typography>
+                                            {c.description && (
+                                                <Typography variant="pi" textColor="neutral400" style={{ fontSize: 11 }}>
+                                                    {c.description}
+                                                </Typography>
+                                            )}
+                                            <Typography variant="pi" textColor="neutral400" style={{ fontSize: 10 }}>
+                                                Currently on: {c.resource?.contentTypeUid || c.resource?.displayName || (c.resource ? `resource #${c.resource.id ?? c.resource}` : 'unattached')}
+                                            </Typography>
+                                        </Box>
+                                        <Button size="S" loading={saving === action} onClick={() => handleLinkExisting(c, action)}>
+                                            Assign
+                                        </Button>
+                                    </Flex>
+                                ))}
+                            </Box>
+                        )}
+
+                        {/* ── Inline create/edit form ── */}
+                        {(isEditingThis || isCreatingThis) && (
                             <InlinePolicyEditor
                                 resource={resource}
                                 action={action}
-                                existingPolicy={policy}
+                                existingPolicy={isEditingThis ? policy : null}
                                 roles={roles}
                                 strapiTypes={strapiTypes}
                                 allTypes={allTypes}
                                 attributes={attributes}
-                                onDone={() => { setEditing(null); onRefresh(); }}
-                                onCancel={() => setEditing(null)}
+                                onDone={() => { setEditing(null); setCreating(null); onRefresh(); }}
+                                onCancel={() => { setEditing(null); setCreating(null); }}
                             />
                         )}
                     </Box>
@@ -489,8 +704,13 @@ function ResourcePoliciesPanel({ resource, policies, roles, strapiTypes, onRefre
 function ResourceCard({ row, policies, roles, strapiTypes, onEdit, onDelete, onRefresh }) {
     const [expanded, setExpanded] = useState(false);
     const resourcePolicies = policies.filter(p => String(p.resource?.id ?? p.resource) === String(row.id));
-    const coveredActions = resourcePolicies.filter(p => p.actionName).map(p => p.actionName);
-    const missingCount = STRAPI_ACTIONS.filter(a => !coveredActions.includes(a)).length;
+    const coveredActions = new Set(
+        resourcePolicies
+            .map(p => normalizeActionName(p.actionName))
+            .filter(Boolean)
+    );
+    const coveredCount = STRAPI_ACTIONS.filter(a => coveredActions.has(a)).length;
+    const missingCount = STRAPI_ACTIONS.filter(a => !coveredActions.has(a)).length;
 
     return (
         <Box background="neutral0" style={{ border: '1px solid #e8e8e8', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
@@ -516,7 +736,7 @@ function ResourceCard({ row, policies, roles, strapiTypes, onEdit, onDelete, onR
                                 <span style={{ fontSize: 10, background: '#f0f0f0', border: '1px solid #ddd', borderRadius: 3, padding: '1px 5px', color: '#888' }}>inactive</span>
                             )}
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: resourcePolicies.length > 0 ? '#e8f5e9' : '#fff8f8', color: resourcePolicies.length > 0 ? '#2e7d32' : '#c62828', border: `1px solid ${resourcePolicies.length > 0 ? '#a5d6a7' : '#fddcdc'}` }}>
-                                {resourcePolicies.length}/{STRAPI_ACTIONS.length} actions covered
+                                {coveredCount}/{STRAPI_ACTIONS.length} actions covered
                             </span>
                             {missingCount > 0 && (
                                 <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: '#fff8e1', color: '#f57f17', border: '1px solid #ffe082' }}>
@@ -580,6 +800,22 @@ function Resources({
     const [showCreateSection, setShowCreateSection] = useState(false);
     const [createMode, setCreateMode] = useState(null);
     const activeTab = subTab || 'api-resources';
+    const rawPolicy = formData?.__initialPolicy;
+
+    // Always provide a default initialPolicy block for new records even if missing from formData
+    const initialPolicy = !editingRecord 
+        ? (rawPolicy && typeof rawPolicy === 'object' ? rawPolicy : { key: '', actionName: '', query: {}, filters: {}, body: {}, grants: [] })
+        : null;
+
+    const allTypes = useMemo(() => {
+        const map = new Map();
+        (strapiTypes || []).forEach(ct => map.set(ct.uid, ct));
+        return map;
+    }, [strapiTypes]);
+    const initialPolicyAttributes = useMemo(() => {
+        const uid = initialPolicy?.contentTypeUid || formData?.contentTypeUid;
+        return uid ? (allTypes.get(uid)?.attributes || []) : [];
+    }, [allTypes, initialPolicy?.contentTypeUid, formData?.contentTypeUid]);
 
     function handleUseFromCatalog(ct, action) {
         onUseFromCatalog(ct, action);
@@ -635,6 +871,26 @@ function Resources({
                         strapiTypes={strapiTypes}
                     />
                 </Box>
+
+                {!editingRecord && initialPolicy && (
+                    <Box paddingTop={4}>
+                        <Divider />
+                        <Box paddingTop={4} paddingBottom={2}>
+                            <Typography variant="beta">Initial Policy (required)</Typography>
+                            <Typography variant="pi" textColor="neutral500">
+                                This resource will create one policy under it. Configure it before saving.
+                            </Typography>
+                        </Box>
+                        <PolicyForm
+                            formData={initialPolicy}
+                            onChange={(nextPolicy) => onFormChange({ ...formData, __initialPolicy: { ...initialPolicy, ...nextPolicy } })}
+                            resources={[]}
+                            roles={roles}
+                            attributes={initialPolicyAttributes}
+                            allTypes={allTypes}
+                        />
+                    </Box>
+                )}
 
                 {/* Policies panel — only shown when editing an existing resource */}
                 {editingRecord && (

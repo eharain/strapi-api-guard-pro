@@ -22,6 +22,46 @@ function Users({ users, roleOptions, selectedUserId, selectedRoleIds, userSearch
         return Array.from(seen.values());
     }, [users]);
 
+    // Group roles by domain for the left assignment panel
+    // roles.domains is a manyToMany array — a role may belong to multiple domains
+    const rolesByDomain = useMemo(() => {
+        const map = new Map(); // domainKey -> { label, roles[] }
+        roleOptions.forEach(role => {
+            const doms = Array.isArray(role.domains) && role.domains.length > 0 ? role.domains : null;
+            if (doms) {
+                doms.forEach(domain => {
+                    const domainKey = String(domain.id);
+                    const domainLabel = domain.key || domain.name || `Domain #${domain.id}`;
+                    if (!map.has(domainKey)) map.set(domainKey, { label: domainLabel, roles: [] });
+                    map.get(domainKey).roles.push(role);
+                });
+            } else {
+                if (!map.has('__none__')) map.set('__none__', { label: 'No Domain', roles: [] });
+                map.get('__none__').roles.push(role);
+            }
+        });
+        // Sort: domains alphabetically, No Domain last
+        return Array.from(map.entries()).sort(([ka, a], [kb, b]) => {
+            if (ka === '__none__') return 1;
+            if (kb === '__none__') return -1;
+            return a.label.localeCompare(b.label);
+        });
+    }, [roleOptions]);
+
+    const selectedSet = useMemo(() => new Set(selectedRoleIds.map(String)), [selectedRoleIds]);
+
+    const handleAddAllInDomain = (roles) => {
+        roles.forEach(role => {
+            if (!selectedSet.has(String(role.id))) onToggleRole(String(role.id));
+        });
+    };
+
+    const handleRemoveAllInDomain = (roles) => {
+        roles.forEach(role => {
+            if (selectedSet.has(String(role.id))) onToggleRole(String(role.id));
+        });
+    };
+
     const filtered = useMemo(() => {
         return users.filter(u => {
             if (userSearch) {
@@ -74,25 +114,63 @@ function Users({ users, roleOptions, selectedUserId, selectedRoleIds, userSearch
                         <Box paddingTop={4}>
                             <Typography variant="sigma">Assigned AGP Roles</Typography>
                             <Box paddingTop={2}>
-                                {roleOptions.map(role => {
-                                    const inputId = `assign-role-${role.id}`;
+                                {rolesByDomain.map(([domainKey, { label, roles }]) => {
+                                    const allAssigned = roles.every(r => selectedSet.has(String(r.id)));
+                                    const someAssigned = roles.some(r => selectedSet.has(String(r.id)));
+                                    const missingCount = roles.filter(r => !selectedSet.has(String(r.id))).length;
                                     return (
-                                        <Flex key={role.id} gap={2} alignItems="center" paddingBottom={2}>
-                                            <input
-                                                id={inputId}
-                                                type="checkbox"
-                                                checked={selectedRoleIds.includes(String(role.id))}
-                                                onChange={() => onToggleRole(String(role.id))}
-                                            />
-                                            <label htmlFor={inputId}>
-                                                <Typography variant="pi">{role.key}</Typography>
-                                            </label>
-                                            {role.domain && (
-                                                <Typography variant="pi" textColor="neutral500" style={{ fontSize: 11 }}>
-                                                    ({role.domain.key || role.domain.name || `#${role.domain.id}`})
+                                        <Box key={domainKey} style={{ marginBottom: 12, border: '1px solid #e8e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                                            {/* Domain header */}
+                                            <Flex justifyContent="space-between" alignItems="center" style={{ padding: '6px 10px', background: '#f4f4f8' }}>
+                                                <Typography variant="pi" fontWeight="semiBold" textColor="neutral600">
+                                                    {label}
                                                 </Typography>
-                                            )}
-                                        </Flex>
+                                                <Flex gap={1}>
+                                                    {missingCount > 0 && (
+                                                        <Button size="S" variant="tertiary"
+                                                            onClick={() => handleAddAllInDomain(roles)}>
+                                                            + Add all ({missingCount})
+                                                        </Button>
+                                                    )}
+                                                    {someAssigned && (
+                                                        <Button size="S" variant="danger-light"
+                                                            onClick={() => handleRemoveAllInDomain(roles)}>
+                                                            Remove all
+                                                        </Button>
+                                                    )}
+                                                </Flex>
+                                            </Flex>
+                                            {/* Roles in domain */}
+                                            <Box style={{ padding: '6px 10px' }}>
+                                                {roles.map(role => {
+                                                    const inputId = `assign-role-${role.id}`;
+                                                    const isChecked = selectedSet.has(String(role.id));
+                                                    return (
+                                                        <Flex key={role.id} gap={2} alignItems="center" paddingBottom={1}>
+                                                            <input
+                                                                id={inputId}
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => onToggleRole(String(role.id))}
+                                                            />
+                                                            <label htmlFor={inputId} style={{ cursor: 'pointer', flex: 1 }}>
+                                                                <Typography variant="pi">{role.key}</Typography>
+                                                                {role.name && role.name !== role.key && (
+                                                                    <Typography variant="pi" textColor="neutral400" style={{ fontSize: 10, marginLeft: 4 }}>
+                                                                        {role.name}
+                                                                    </Typography>
+                                                                )}
+                                                            </label>
+                                                            {isChecked && (
+                                                                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7', fontWeight: 700 }}>
+                                                                    assigned
+                                                                </span>
+                                                            )}
+                                                        </Flex>
+                                                    );
+                                                })}
+                                            </Box>
+                                        </Box>
                                     );
                                 })}
                             </Box>

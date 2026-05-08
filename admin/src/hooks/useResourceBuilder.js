@@ -4,6 +4,34 @@ import { getEmptyForm } from '../utils/forms';
 
 const apiEndpoint = (path) => `/api-guard-pro${path}`;
 
+const buildInitialPolicy = ({ contentTypeUid = '', actionName = '', method = '' } = {}) => {
+    const model = String(contentTypeUid || '').split('::').pop()?.split('.').pop() || 'resource';
+    const fallbackAction = method === 'POST'
+        ? 'create'
+        : method === 'PUT' || method === 'PATCH'
+            ? 'update'
+            : method === 'DELETE'
+                ? 'delete'
+                : 'find';
+    const normalizedAction = actionName || fallbackAction;
+    const actionWithModel = normalizedAction.includes('.') ? normalizedAction : `${model}.${normalizedAction}`;
+    const actionPart = actionWithModel.split('.').pop() || normalizedAction;
+    const key = `${model}-${actionPart}`;
+
+    return {
+        uid: `${contentTypeUid}.${actionWithModel}.${key}`,
+        key,
+        contentTypeUid,
+        actionName: actionWithModel,
+        description: `Initial policy for ${actionWithModel}`,
+        isActive: true,
+        query: {},
+        filters: {},
+        body: {},
+        grants: [],
+    };
+};
+
 export function useResourceBuilder({ activeTab, setActiveTab, setResourceSubTab, setEditingRecord, setFormData, setPanelOpen, pendingPanelRef }) {
     const { get } = useFetchClient();
 
@@ -30,6 +58,11 @@ export function useResourceBuilder({ activeTab, setActiveTab, setResourceSubTab,
                 displayName: payload.displayName || payload.contentTypeUid || '',
                 description: payload.description || '',
                 isActive: payload.isActive !== false,
+                __initialPolicy: buildInitialPolicy({
+                    contentTypeUid: payload.contentTypeUid || '',
+                    actionName: payload.actionName || '',
+                    method: payload.recordedRequestRaw?.method || item.method || '',
+                }),
             };
             openResourceForm(form);
         } catch {
@@ -37,17 +70,27 @@ export function useResourceBuilder({ activeTab, setActiveTab, setResourceSubTab,
                 ...getEmptyForm('resources'),
                 contentTypeUid: item.contentTypeUid || '',
                 displayName: item.displayName || item.contentTypeUid || '',
+                __initialPolicy: buildInitialPolicy({
+                    contentTypeUid: item.contentTypeUid || '',
+                    actionName: item.actionName || '',
+                    method: item.method || '',
+                }),
             };
             openResourceForm(form);
         }
     }, [get, openResourceForm]);
 
-    const buildResourceFromCatalog = useCallback((contentType /*, action */) => {
+    const buildResourceFromCatalog = useCallback((contentType, action) => {
         const form = {
             ...getEmptyForm('resources'),
             contentTypeUid: contentType.uid || '',
             displayName: contentType.displayName || contentType.uid || '',
             description: `Generated from builder catalog`,
+            __initialPolicy: buildInitialPolicy({
+                contentTypeUid: contentType.uid || '',
+                actionName: action?.action || '',
+                method: action?.method || '',
+            }),
         };
         openResourceForm(form);
     }, [openResourceForm]);

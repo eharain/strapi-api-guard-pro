@@ -162,14 +162,31 @@ function DomainInlineForm({ init = {}, onSave, onCancel, saving }) {
 // ─── ROLE form ────────────────────────────────────────────────────────────────
 const LEVELS = ['staff', 'manager', 'admin', 'super-admin'];
 
-function RoleInlineForm({ init = {}, domainId, onSave, onCancel, saving }) {
-    const resolvedDomain = init.domain?.id ? String(init.domain.id) : (domainId ? String(domainId) : null);
+function RoleInlineForm({ init = {}, domainId, domains = [], onSave, onCancel, saving }) {
+    const resolvedDomains = Array.isArray(init.domains) && init.domains.length > 0
+        ? init.domains.map(d => String(d?.id ?? d))
+        : init.domain?.id
+            ? [String(init.domain.id)]
+            : init.domain
+                ? [String(init.domain)]
+                : domainId
+                    ? [String(domainId)]
+                    : [];
+
     const [r, setR] = useState({
         key: '', name: '', description: '', isActive: true, level: 'staff',
         ...init,
-        domain: resolvedDomain,
+        domains: resolvedDomains,
     });
     const s = (patch) => setR(p => ({ ...p, ...patch }));
+    const toggleDomain = (id) => {
+        const strId = String(id);
+        const current = Array.isArray(r.domains) ? r.domains.map(String) : [];
+        const next = current.includes(strId)
+            ? current.filter(d => d !== strId)
+            : [...current, strId];
+        s({ domains: next });
+    };
     return (
         <InlineForm onSave={() => onSave(r)} onCancel={onCancel} saving={saving}
             saveLabel={init.id ? 'Update Role' : 'Create Role'}>
@@ -190,6 +207,27 @@ function RoleInlineForm({ init = {}, domainId, onSave, onCancel, saving }) {
                 <div style={{ flex: '0 0 auto', paddingTop: 4 }}>
                     <FormSwitch label="Active" name="r_isActive" checked={r.isActive !== false} onChange={v => s({ isActive: v })} />
                 </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+                <Typography variant="pi" fontWeight="semiBold" style={{ display: 'block', marginBottom: 6 }}>Domains</Typography>
+                {domains.length === 0 ? (
+                    <Typography variant="pi" textColor="neutral400">No domains yet.</Typography>
+                ) : domains.map(d => {
+                    const inputId = `ac-role-domain-${init.id || 'new'}-${d.id}`;
+                    return (
+                        <Flex key={d.id} gap={2} alignItems="center" paddingBottom={1}>
+                            <input
+                                id={inputId}
+                                type="checkbox"
+                                checked={(r.domains || []).map(String).includes(String(d.id))}
+                                onChange={() => toggleDomain(d.id)}
+                            />
+                            <label htmlFor={inputId}>
+                                <Typography variant="pi">{d.key || d.name || `#${d.id}`}</Typography>
+                            </label>
+                        </Flex>
+                    );
+                })}
             </div>
         </InlineForm>
     );
@@ -273,10 +311,19 @@ export default function AccessControl({ domains, roles, grants, policies, resour
     const save = useCallback(async (entity, data, existingId) => {
         setSaving(true);
         try {
+            const payload = { ...data };
+            if (entity === 'roles' && Array.isArray(payload.domains)) {
+                payload.domains = payload.domains
+                    .map(d => (typeof d === 'object' ? d.id : d))
+                    .map(d => Number(d))
+                    .filter(Number.isFinite);
+                delete payload.domain;
+            }
+
             if (existingId) {
-                await put(api(`/entities/${entity}/${existingId}`), { data });
+                await put(api(`/entities/${entity}/${existingId}`), { data: payload });
             } else {
-                await post(api(`/entities/${entity}`), { data });
+                await post(api(`/entities/${entity}`), { data: payload });
             }
             clearInline();
             await onRefresh(entity);
@@ -302,13 +349,21 @@ export default function AccessControl({ domains, roles, grants, policies, resour
 
     // ── Domain-scoped lookups ─────────────────────────────────────────────────
     const rolesForDomain = (domainId) =>
-        roles.filter(r => r.domain?.id === domainId || r.domain === domainId);
+        roles.filter(r => {
+            const arr = Array.isArray(r.domains) ? r.domains : [];
+            if (arr.some(d => String(d?.id ?? d) === String(domainId))) return true;
+            return r.domain?.id === domainId || r.domain === domainId;
+        });
 
     const grantsForRole = (roleId) =>
         grants.filter(g => g.role?.id === roleId || g.role === roleId);
 
     // unattached roles (no domain)
-    const unattachedRoles = roles.filter(r => !r.domain && r.domain !== 0);
+    const unattachedRoles = roles.filter(r => {
+        const arr = Array.isArray(r.domains) ? r.domains : [];
+        if (arr.length > 0) return false;
+        return !r.domain && r.domain !== 0;
+    });
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -403,6 +458,7 @@ export default function AccessControl({ domains, roles, grants, policies, resour
                                 {inline?.type === 'add-role' && inline.parentId === domain.id && (
                                     <RoleInlineForm
                                         domainId={domain.id}
+                                        domains={domains}
                                         onSave={r => save('roles', r)}
                                         onCancel={clearInline}
                                         saving={saving}
@@ -456,6 +512,7 @@ export default function AccessControl({ domains, roles, grants, policies, resour
                                                         <RoleInlineForm
                                                             init={role}
                                                             domainId={domain.id}
+                                                            domains={domains}
                                                             onSave={r => save('roles', r, role.id)}
                                                             onCancel={clearInline}
                                                             saving={saving}
@@ -623,6 +680,7 @@ export default function AccessControl({ domains, roles, grants, policies, resour
                                             <Box style={{ padding: '0 12px 12px' }} onClick={e => e.stopPropagation()}>
                                                 <RoleInlineForm
                                                     init={role}
+                                                    domains={domains}
                                                     onSave={r => save('roles', r, role.id)}
                                                     onCancel={clearInline}
                                                     saving={saving}

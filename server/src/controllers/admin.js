@@ -23,8 +23,8 @@ const MODEL_UIDS = {
 };
 
 const POPULATE = {
-  domains:   { roles: true },
-  roles:     { domain: true, policies: true },
+  domains:   { roles: { populate: { domains: true } } },
+  roles:     { domains: true, policies: true },
   resources: { policies: true },
   policies:  { resource: true, grants: true },
 };
@@ -140,7 +140,10 @@ module.exports = ({ strapi }) => ({
       select: ['id', 'username', 'email', 'displayName', 'blocked', 'confirmed'],
       populate: {
         role: { select: ['id', 'name', 'type'] },
-        api_guard_roles: { select: ['id', 'key', 'name'], populate: { domain: { select: ['id', 'key', 'name'] } } },
+        api_guard_roles: {
+          select: ['id', 'key', 'name'],
+          populate: { domains: { select: ['id', 'key', 'name'] } },
+        },
       },
     });
     ctx.send({ data: users || [] });
@@ -150,22 +153,28 @@ module.exports = ({ strapi }) => ({
     const id = toNumber(ctx.params.id);
     if (!id) return ctx.badRequest('Invalid user id');
 
-    const body = ctx.request.body || {};
+    const body = ctx.request.body?.data || ctx.request.body || {};
     const roleIds = (Array.isArray(body.roleIds) ? body.roleIds : []).map(Number).filter(Boolean);
 
     const user = await strapi.db.query('plugin::users-permissions.user').findOne({ where: { id } });
     if (!user) return ctx.notFound('User not found');
 
-    await strapi.db.query('plugin::users-permissions.user').update({
-      where: { id },
-      data: { api_guard_roles: roleIds },
+    // Use explicit relation set syntax so assignment is deterministic.
+    await strapi.entityService.update('plugin::users-permissions.user', id, {
+      data: {
+        api_guard_roles: { set: roleIds },
+      },
     });
 
+    // Re-fetch user with populated roles
     const updated = await strapi.db.query('plugin::users-permissions.user').findOne({
       where: { id },
       select: ['id', 'username', 'email', 'displayName'],
       populate: {
-        api_guard_roles: { select: ['id', 'key', 'name'], populate: { domain: { select: ['id', 'key', 'name'] } } },
+        api_guard_roles: {
+          select: ['id', 'key', 'name'],
+          populate: { domains: { select: ['id', 'key', 'name'] } },
+        },
       },
     });
 

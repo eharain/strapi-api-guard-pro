@@ -7,7 +7,7 @@ export const ensureLeadingSlash = (value = '') => {
 export const getEmptyForm = (tab) => {
     switch (tab) {
         case 'domains':
-            return { key: '', name: '', description: '', isActive: true };
+            return { key: '', name: '', description: '', isActive: true, roles: [] };
         case 'resources':
             return {
                 contentTypeUid: '',
@@ -16,7 +16,7 @@ export const getEmptyForm = (tab) => {
                 isActive: true,
             };
         case 'roles':
-            return { key: '', name: '', description: '', isActive: true, domain: null };
+            return { key: '', name: '', description: '', isActive: true, domains: [] };
         case 'policies':
             return {
                 uid: '',

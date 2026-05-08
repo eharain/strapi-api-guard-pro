@@ -33,8 +33,15 @@ const TABS = [
     { key: 'data-transfer', label: '⇅ Import / Export' },
 ];
 
+const VALID_KEYS = TABS.map(t => t.key);
+
+function getHashTab() {
+    const hash = (window.location.hash || '').replace(/^#\/?/, '');
+    return VALID_KEYS.includes(hash) ? hash : 'domains';
+}
+
 export default function HomePage() {
-    const [activeTab, setActiveTab] = useState('domains');
+    const [activeTab, setActiveTab] = useState(getHashTab);
     const [globalLoading, setGlobalLoading] = useState(true);
     const [message, setMessage] = useState({ text: '', variant: 'default' });
     const [resourceSubTab, setResourceSubTab] = useState('api-request-recordings');
@@ -68,6 +75,14 @@ export default function HomePage() {
         selectedUserId, selectedRoleIds, userSearch, setUserSearch,
         selectUser, toggleRole, saveAssignment, userAssignmentLoading
     } = useUserAssignment({ users, notify, loadUsersAndRoles });
+
+    useEffect(() => {
+        const onHashChange = () => setActiveTab(getHashTab());
+        window.addEventListener('hashchange', onHashChange);
+        return () => window.removeEventListener('hashchange', onHashChange);
+    }, []);
+
+    const navigateTab = (key) => { window.location.hash = key; setActiveTab(key); };
 
     useEffect(() => { boot(); }, []);
 
@@ -166,7 +181,7 @@ export default function HomePage() {
                         <Button
                             key={tab.key}
                             variant={activeTab === tab.key ? 'default' : 'tertiary'}
-                            onClick={() => setActiveTab(tab.key)}
+                            onClick={() => navigateTab(tab.key)}
                         >
                             {tab.label}
                         </Button>
@@ -188,7 +203,13 @@ export default function HomePage() {
                 {/* Tab content */}
                 <Box paddingTop={4}>
                     {activeTab === 'domains' && (
-                        <Domains {...commonTabProps} domains={domains} roles={roles} />
+                        <Domains
+                            {...commonTabProps}
+                            domains={domains}
+                            roles={roles}
+                            policies={policies}
+                            onDeleteRole={(id) => deleteRecord('roles', id)}
+                        />
                     )}
 
                     {activeTab === 'resources' && (

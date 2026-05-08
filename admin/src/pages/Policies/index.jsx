@@ -192,13 +192,24 @@ function Policies({ policies, resources, roles = [], strapiTypes = [], panelOpen
         return allTypes.get(uid)?.attributes || [];
     }, [formData?.contentTypeUid, allTypes]);
 
-    const filtered = React.useMemo(() => policies.filter(r => {
-        const hay = `${r.uid || ''} ${r.key || ''} ${r.contentTypeUid || ''} ${r.actionName || ''}`.toLowerCase();
-        if (filters.search && !hay.includes(filters.search.toLowerCase())) return false;
-        if (filters.resource && String(r.resource?.id) !== filters.resource) return false;
-        if (filters.actionName && r.actionName !== filters.actionName) return false;
-        return true;
-    }), [policies, filters]);
+    const filtered = React.useMemo(() => {
+        const list = policies.filter(r => {
+            const hay = `${r.uid || ''} ${r.key || ''} ${r.contentTypeUid || ''} ${r.actionName || ''}`.toLowerCase();
+            if (filters.search && !hay.includes(filters.search.toLowerCase())) return false;
+            if (filters.resource && String(r.resource?.id) !== filters.resource) return false;
+            if (filters.actionName && r.actionName !== filters.actionName) return false;
+            return true;
+        });
+
+        // Pre-sort by contentTypeUid so grouping across pages is contiguous
+        return list.sort((a, b) => {
+            const ctA = a.resource?.contentTypeUid || a.resource?.displayName || a.contentTypeUid || 'Unassigned Content Type';
+            const ctB = b.resource?.contentTypeUid || b.resource?.displayName || b.contentTypeUid || 'Unassigned Content Type';
+            if (ctA === 'Unassigned Content Type' && ctB !== 'Unassigned Content Type') return 1;
+            if (ctB === 'Unassigned Content Type' && ctA !== 'Unassigned Content Type') return -1;
+            return ctA.localeCompare(ctB);
+        });
+    }, [policies, filters]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
@@ -227,7 +238,23 @@ function Policies({ policies, resources, roles = [], strapiTypes = [], panelOpen
                     <Box padding={6} background="neutral100" style={{ borderRadius: 8, textAlign: 'center' }}>
                         <Typography textColor="neutral500">{policies.length === 0 ? 'No policies yet.' : 'No records match your filters.'}</Typography>
                     </Box>
-                ) : paged.map(row => <RecordCard key={row.id} row={row} onClick={() => onEdit(row)} onDelete={() => onDelete(row.id)} />)}
+                ) : (
+                    Object.entries(paged.reduce((acc, row) => {
+                        const ct = row.resource?.contentTypeUid || row.resource?.displayName || row.contentTypeUid || 'Unassigned Content Type';
+                        if (!acc[ct]) acc[ct] = [];
+                        acc[ct].push(row);
+                        return acc;
+                    }, {})).map(([ct, group]) => (
+                        <Box key={ct} paddingBottom={4}>
+                            <Typography variant="delta" textColor="primary600" style={{ display: 'block', marginBottom: 12 }}>
+                                {ct}
+                            </Typography>
+                            {group.map(row => (
+                                <RecordCard key={row.id} row={row} onClick={() => onEdit(row)} onDelete={() => onDelete(row.id)} />
+                            ))}
+                        </Box>
+                    ))
+                )}
                 <Pagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
             </Box>
             {panelOpen && (

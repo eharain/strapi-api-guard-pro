@@ -7,7 +7,7 @@
  * layer. The 4 backing content-types are:
  *
  *   domain   (key)
- *   role     (key, domain m:1)
+ *   role     (key, domains m:n)
  *   resource (contentTypeUid)
  *   policy   (uid, contentTypeUid, actionName, key,
  *             grants m:n role, query, filters, body, resource m:1)
@@ -23,8 +23,10 @@ const UIDS = {
 const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const unique = (arr = []) => Array.from(new Set(arr.filter((v) => v != null)));
 
-const buildPolicyUid = (contentTypeUid, actionName, key) =>
-  `${contentTypeUid}.${actionName}.${key}`;
+const buildPolicyUid = (contentTypeUid, actionName, key) => {
+  const actionTail = String(actionName || '').split('.').filter(Boolean).pop() || String(actionName || '').trim();
+  return `${contentTypeUid}.${actionTail}.${key}`;
+};
 
 module.exports = ({ strapi }) => ({
   async exportData() {
@@ -142,10 +144,11 @@ module.exports = ({ strapi }) => ({
     }
 
     // 2. Roles — derive each role's owning domain from domainsIn (first wins).
-    const roleDomainKey = {};
+    const roleDomainKeys = {};
     for (const [domainKey, d] of Object.entries(domainsIn)) {
       for (const roleKey of d?.roles || []) {
-        if (!roleDomainKey[roleKey]) roleDomainKey[roleKey] = domainKey;
+        if (!roleDomainKeys[roleKey]) roleDomainKeys[roleKey] = [];
+        if (!roleDomainKeys[roleKey].includes(domainKey)) roleDomainKeys[roleKey].push(domainKey);
         if (!rolesIn[roleKey]) rolesIn[roleKey] = {};
       }
     }
@@ -153,15 +156,30 @@ module.exports = ({ strapi }) => ({
     const roleIdByKey = {};
     for (const [key, r] of Object.entries(rolesIn)) {
       if (!key) continue;
-      const domainKey = r?.domainKey || roleDomainKey[key];
+      const explicitRoleDomains = Array.isArray(r?.domains)
+        ? r.domains
+        : [r?.domainKey || r?.domain].filter(Boolean);
+      const mergedDomainKeys = unique([...(roleDomainKeys[key] || []), ...explicitRoleDomains]);
+      const domainIds = mergedDomainKeys
+        .map((dk) => domainIdByKey[dk])
+        .filter(Boolean);
+
+      const unknownDomains = mergedDomainKeys.filter((dk) => !domainIdByKey[dk]);
+      if (unknownDomains.length) {
+        results.roles.errors.push({
+          where: { key },
+          error: `unknown domain keys: ${unknownDomains.join(', ')}`,
+        });
+      }
+
       const data = {
         key,
         name: r?.name || key,
         description: r?.description,
         isActive: r?.isActive !== undefined ? r.isActive : true,
       };
-      if (domainKey && domainIdByKey[domainKey]) {
-        data.domain = { id: domainIdByKey[domainKey] };
+      if (domainIds.length) {
+        data.domains = domainIds.map((id) => ({ id }));
       }
       const id = await upsert(UIDS.role, { key }, data, results.roles);
       if (id) roleIdByKey[key] = id;

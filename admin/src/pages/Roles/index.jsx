@@ -3,10 +3,25 @@ import { Box, Typography, Button, Flex } from '@strapi/design-system';
 import FilterBar from '../../components/Common/FilterBar.jsx';
 import RecordCard from '../../components/Common/RecordCard.jsx';
 import Pagination from '../../components/Common/Pagination.jsx';
-import { FormInput, FormTextarea, FormSelect, FormSwitch } from '../../components/ui.jsx';
+import { FormInput, FormTextarea, FormSwitch } from '../../components/ui.jsx';
 
 function RoleForm({ formData, onChange, domains }) {
     const set = (patch) => onChange({ ...formData, ...patch });
+
+    // domains is now manyToMany — store as array of ids
+    const selectedDomainIds = React.useMemo(() => {
+        const raw = formData.domains || [];
+        return raw.map(d => String(d.id ?? d));
+    }, [formData.domains]);
+
+    const toggleDomain = (id) => {
+        const strId = String(id);
+        const next = selectedDomainIds.includes(strId)
+            ? selectedDomainIds.filter(d => d !== strId)
+            : [...selectedDomainIds, strId];
+        set({ domains: next.map(Number) });
+    };
+
     return (
         <>
             <Box paddingBottom={3}><FormInput label="Key" id="rol_key" name="key" value={formData.key || ''} onChange={e => set({ key: e.target.value })} required hint="Unique identifier" /></Box>
@@ -14,8 +29,25 @@ function RoleForm({ formData, onChange, domains }) {
             <Box paddingBottom={3}><FormTextarea label="Description" id="rol_desc" value={formData.description || ''} onChange={e => set({ description: e.target.value })} /></Box>
             <Box paddingBottom={3}><FormSwitch label="Active" name="rol_isActive" checked={formData.isActive !== false} onChange={v => set({ isActive: v })} /></Box>
             <Box paddingBottom={3}>
-                <FormSelect label="Domain" id="rol_domain" value={formData.domain ? String(formData.domain) : ''} onChange={v => set({ domain: v || null })}
-                    options={[{ value: '', label: 'None' }, ...domains.map(d => ({ value: String(d.id), label: d.key || d.name || `#${d.id}` }))]} />
+                <Typography variant="pi" fontWeight="semiBold" style={{ display: 'block', marginBottom: 6 }}>Domains</Typography>
+                {domains.length === 0 ? (
+                    <Typography variant="pi" textColor="neutral400">No domains yet.</Typography>
+                ) : domains.map(d => {
+                    const inputId = `rol-domain-${d.id}`;
+                    return (
+                        <Flex key={d.id} gap={2} alignItems="center" paddingBottom={1}>
+                            <input
+                                id={inputId}
+                                type="checkbox"
+                                checked={selectedDomainIds.includes(String(d.id))}
+                                onChange={() => toggleDomain(d.id)}
+                            />
+                            <label htmlFor={inputId}>
+                                <Typography variant="pi">{d.key || d.name || `#${d.id}`}</Typography>
+                            </label>
+                        </Flex>
+                    );
+                })}
             </Box>
         </>
     );
@@ -28,7 +60,7 @@ function Roles({ roles, domains, panelOpen, editingRecord, formData, onFormChang
 
     const filtered = React.useMemo(() => roles.filter(r => {
         if (filters.search && !(r.key || r.name || '').toLowerCase().includes(filters.search.toLowerCase())) return false;
-        if (filters.domain && String(r.domain?.id) !== filters.domain) return false;
+        if (filters.domain && !(r.domains || []).some(d => String(d.id ?? d) === filters.domain)) return false;
         return true;
     }), [roles, filters]);
 
@@ -52,7 +84,24 @@ function Roles({ roles, domains, panelOpen, editingRecord, formData, onFormChang
                     <Box padding={6} background="neutral100" style={{ borderRadius: 8, textAlign: 'center' }}>
                         <Typography textColor="neutral500">{roles.length === 0 ? 'No roles yet.' : 'No records match your filters.'}</Typography>
                     </Box>
-                ) : paged.map(row => <RecordCard key={row.id} row={row} onClick={() => onEdit(row)} onDelete={() => onDelete(row.id)} />)}
+                ) : paged.map(row => (
+                    <RecordCard
+                        key={row.id}
+                        row={{
+                            ...row,
+                            domain: Array.isArray(row.domains) && row.domains.length > 0
+                                ? row.domains.map(d => d?.key || d?.name || `#${d?.id ?? d}`).join(', ')
+                                : row.domain,
+                        }}
+                        onClick={() => onEdit(row)}
+                        onDelete={() => onDelete(row.id)}
+                        extraActions={(
+                            <Button size="S" variant="secondary" onClick={(e) => { e.stopPropagation(); onEdit(row); }}>
+                                Edit
+                            </Button>
+                        )}
+                    />
+                ))}
                 <Pagination page={safePage} totalPages={totalPages} onPageChange={setPage} />
             </Box>
             {panelOpen && (

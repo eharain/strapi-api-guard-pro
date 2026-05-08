@@ -17,6 +17,7 @@
 
 const POLICY_UID = 'plugin::api-guard-pro.policy';
 const ROLE_UID = 'plugin::api-guard-pro.role';
+const USER_UID = 'plugin::users-permissions.user';
 
 const cache = new Map();
 let cacheTTL = 30000;
@@ -60,15 +61,43 @@ module.exports = ({ strapi }) => ({
   async resolveUserRoleKeys(user) {
     if (!user) return [];
 
+    const candidateKeys = new Set();
+
+    // Preferred: plugin guard roles directly attached to the user.
+    const directGuardRoles = Array.isArray(user.api_guard_roles)
+      ? user.api_guard_roles
+      : [];
+    for (const gr of directGuardRoles) {
+      if (gr?.key) candidateKeys.add(String(gr.key));
+    }
+
+    // If not already present on ctx.state.user, load from DB.
+    if (!candidateKeys.size && user?.id) {
+      const dbUser = await strapi.db.query(USER_UID).findOne({
+        where: { id: user.id },
+        populate: {
+          api_guard_roles: { select: ['key'] },
+        },
+      }).catch(() => null);
+
+      for (const gr of dbUser?.api_guard_roles || []) {
+        if (gr?.key) candidateKeys.add(String(gr.key));
+      }
+    }
+
+    // Backward-compatible fallback: users-permissions role names.
     const roleNames = []
       .concat(user.role?.name || [])
       .concat((user.roles || []).map((r) => r?.name))
       .filter(Boolean);
+    for (const name of roleNames) {
+      candidateKeys.add(String(name));
+    }
 
-    if (!roleNames.length) return [];
+    if (!candidateKeys.size) return [];
 
     const matches = await strapi.db.query(ROLE_UID).findMany({
-      where: { key: { $in: roleNames }, isActive: true },
+      where: { key: { $in: Array.from(candidateKeys) }, isActive: true },
     });
     return Array.from(new Set(matches.map((r) => r.key)));
   },

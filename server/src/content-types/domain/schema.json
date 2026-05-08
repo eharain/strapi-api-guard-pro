@@ -39,9 +39,9 @@
     },
     "roles": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "manyToMany",
       "target": "plugin::api-guard-pro.role",
-      "mappedBy": "domain"
+      "mappedBy": "domains"
     }
   }
 }

@@ -3,6 +3,7 @@ import { Box, Flex, Typography, Button } from '@strapi/design-system';
 
 const labelFor = (rec) => {
     if (!rec) return '';
+    if (typeof rec === 'string' || typeof rec === 'number') return String(rec);
     return rec.key || rec.name || rec.displayName || rec.username || rec.email || `#${rec.id}`;
 };
 
@@ -17,7 +18,7 @@ function Badge({ text, bg, color, border }) {
     );
 }
 
-function RecordCard({ row, onClick, onDelete }) {
+function RecordCard({ row, onClick, onDelete, extraActions = null }) {
     return (
         <Box
             padding={3}
@@ -54,12 +55,15 @@ function RecordCard({ row, onClick, onDelete }) {
                         <Typography variant="pi" textColor="neutral500">→ {labelFor(row.resource)}</Typography>
                     )}
                 </Flex>
-                <Button
-                    variant="danger-light"
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                >
-                    Delete
-                </Button>
+                <Flex gap={2} alignItems="center">
+                    {extraActions}
+                    <Button
+                        variant="danger-light"
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    >
+                        Delete
+                    </Button>
+                </Flex>
             </Flex>
         </Box>
     );

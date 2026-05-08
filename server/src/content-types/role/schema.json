@@ -12,7 +12,7 @@
   },
   "pluginOptions": {
     "content-manager": {
-      "visible": true
+      "visible": false
     },
     "content-type-builder": {
       "visible": false
@@ -36,9 +36,9 @@
       "type": "boolean",
       "default": true
     },
-    "domain": {
+    "domains": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToMany",
       "target": "plugin::api-guard-pro.domain",
       "inversedBy": "roles"
     },
@@ -55,7 +55,7 @@
       "mappedBy": "api_guard_roles",
       "configurable": false,
       "writable": false,
-      "visible": false
+      "visible": true
     }
   }
 }

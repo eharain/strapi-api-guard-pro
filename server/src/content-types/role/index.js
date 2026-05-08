@@ -23,7 +23,7 @@ const RELATION_DEF = {
   configurable: false,
   writable: true,
   visible: true,        // true = appears in admin content manager on the User form
-  useJoinTable: true,
+ // useJoinTable: true,
 };
 
 /**
@@ -45,16 +45,33 @@ const extendUserRelation = (strapi) => {
     return;
   }
 
-  // This is the live schema attributes object Strapi will use for DB sync.
-  const attrs = upPlugin.contentTypes?.user?.schema?.attributes;
-  if (!attrs) {
+  // Strapi can expose attributes through different object shapes depending on
+  // version/build mode. Patch all known containers deterministically.
+  const containers = [
+    upPlugin.contentTypes?.user?.schema?.attributes,
+    upPlugin.contentTypes?.user?.attributes,
+    upPlugin.contentTypes?.['plugin::users-permissions.user']?.schema?.attributes,
+    upPlugin.contentTypes?.['plugin::users-permissions.user']?.attributes,
+    strapi.contentTypes?.['plugin::users-permissions.user']?.schema?.attributes,
+    strapi.contentTypes?.['plugin::users-permissions.user']?.attributes,
+  ].filter(Boolean);
+
+  const uniqueContainers = Array.from(new Set(containers));
+  if (uniqueContainers.length === 0) {
     strapi.log.warn('[api-guard-pro] users-permissions.user schema attributes not accessible.');
     return;
   }
 
-  if (!attrs.api_guard_roles) {
-    attrs.api_guard_roles = RELATION_DEF;
-    strapi.log.info('[api-guard-pro] Injected api_guard_roles onto plugin::users-permissions.user');
+  let patched = 0;
+  for (const attrs of uniqueContainers) {
+    if (!attrs.api_guard_roles) {
+      attrs.api_guard_roles = { ...RELATION_DEF };
+      patched += 1;
+    }
+  }
+
+  if (patched > 0) {
+    strapi.log.info(`[api-guard-pro] Injected api_guard_roles onto plugin::users-permissions.user (${patched} container${patched === 1 ? '' : 's'})`);
   }
 };
 
