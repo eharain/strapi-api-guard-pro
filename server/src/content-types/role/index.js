@@ -2,9 +2,19 @@
 
 const schema = require('./schema.json');
 
-// Dynamically extends the users-permissions.user content-type with the
-// owning side of the permission_roles manyToMany relation. Called in
-// register.js before Strapi validates DB metadata.
+// ─── Lifecycle note ─────────────────────────────────────────────────────────
+// Strapi initialization order:
+//   1. Plugin extensions (strapi-server.js in consuming apps) — run first
+//   2. Each plugin's register()                               — runs second
+//   3. DB schema sync / metadata build                        — runs third
+//   4. Each plugin's bootstrap()                              — runs last
+//
+// Because DB sync happens AFTER register(), patching the raw plugin schema
+// inside register() is the correct and only safe way for a plugin to extend
+// another plugin's content-type. The consuming app does NOT need to declare
+// api_guard_roles in its own extension — the plugin is self-contained.
+// ────────────────────────────────────────────────────────────────────────────
+
 const RELATION_DEF = {
   type: 'relation',
   relation: 'manyToMany',
@@ -12,44 +22,39 @@ const RELATION_DEF = {
   inversedBy: 'users',
   configurable: false,
   writable: true,
-  visible: false,
+  visible: true,        // true = appears in admin content manager on the User form
   useJoinTable: true,
 };
 
-// Dynamically extends the users-permissions.user content-type with the
-// owning side of the api_guard_roles manyToMany relation.
-//
-// The authoritative declaration lives in the consuming app's extension at:
-//   src/extensions/users-permissions/content-types/user/schema.json
-// That file is evaluated before DB schema sync, so the join table is created
-// correctly. This function acts as a runtime safety net for any environment
-// where that static declaration is absent.
+/**
+ * Called from register.js to inject the owning side of the api_guard_roles
+ * manyToMany relation onto plugin::users-permissions.user.
+ *
+ * register() runs after plugin extensions (strapi-server.js) but before DB
+ * schema sync, so patching here is the correct lifecycle phase.
+ *
+ * Access path in register():
+ *   strapi.plugin('users-permissions') → the plugin instance built from its
+ *   raw definition. Its .contentTypes.user.schema.attributes IS the object
+ *   Strapi reads when it builds DB metadata in phase 3.
+ */
 const extendUserRelation = (strapi) => {
-  let patched = false;
-
-  // Patch 1 — raw plugin registry (read by DB schema sync).
-  // strapi.plugins is the low-level map populated before register() runs.
-  const rawPlugin = strapi.plugins?.['users-permissions'];
-  if (rawPlugin?.contentTypes?.user?.schema?.attributes) {
-    if (!rawPlugin.contentTypes.user.schema.attributes.api_guard_roles) {
-      rawPlugin.contentTypes.user.schema.attributes.api_guard_roles = RELATION_DEF;
-      patched = true;
-    }
+  const upPlugin = strapi.plugin('users-permissions');
+  if (!upPlugin) {
+    strapi.log.warn('[api-guard-pro] Could not extend user schema — plugin::users-permissions is not loaded.');
+    return;
   }
 
-  // Patch 2 — processed content-types map (used at runtime for queries).
-  const processedCT = strapi.contentTypes?.['plugin::users-permissions.user'];
-  if (processedCT?.attributes) {
-    if (!processedCT.attributes.api_guard_roles) {
-      processedCT.attributes.api_guard_roles = RELATION_DEF;
-      patched = true;
-    }
+  // This is the live schema attributes object Strapi will use for DB sync.
+  const attrs = upPlugin.contentTypes?.user?.schema?.attributes;
+  if (!attrs) {
+    strapi.log.warn('[api-guard-pro] users-permissions.user schema attributes not accessible.');
+    return;
   }
 
-  if (patched) {
-    strapi.log.info('[api-guard-pro] Registered api_guard_roles relation on users-permissions.user');
-  } else if (!rawPlugin && !processedCT) {
-    strapi.log.warn('[api-guard-pro] Could not extend user content-type — plugin::users-permissions is not loaded.');
+  if (!attrs.api_guard_roles) {
+    attrs.api_guard_roles = RELATION_DEF;
+    strapi.log.info('[api-guard-pro] Injected api_guard_roles onto plugin::users-permissions.user');
   }
 };
 
