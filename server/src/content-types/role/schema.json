@@ -47,6 +47,15 @@
       "relation": "manyToMany",
       "target": "plugin::api-guard-pro.policy",
       "mappedBy": "grants"
+    },
+    "users": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "plugin::users-permissions.user",
+      "mappedBy": "api_guard_roles",
+      "configurable": false,
+      "writable": false,
+      "visible": false
     }
   }
 }

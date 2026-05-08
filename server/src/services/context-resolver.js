@@ -20,7 +20,7 @@ async function loadUserAccess(strapi, userId) {
       role: { select: ['type'] },
       app_accesses: { select: ['key'] },
       admin_app_accesses: { select: ['key'] },
-      permission_roles: {
+      api_guard_roles: {
         select: ['key', 'level'],
         populate: { domain: { select: ['key'] } },
       },
@@ -31,9 +31,9 @@ async function loadUserAccess(strapi, userId) {
   const adminKeys = (user?.admin_app_accesses || []).map((a) => a.key).filter(Boolean);
   const roleType = user?.role?.type || null;
 
-  // Also expand permission_roles domain keys (same logic as app-access-guard
+  // Also expand api_guard_roles domain keys (same logic as app-access-guard
   // getEffectiveAppAccessFromUser, without importing pos-shared here).
-  for (const pr of user?.permission_roles || []) {
+  for (const pr of user?.api_guard_roles || []) {
     const dk = pr?.domain?.key;
     if (!dk) continue;
     if (pr.level === 'admin') {

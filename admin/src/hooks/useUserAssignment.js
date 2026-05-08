@@ -13,7 +13,7 @@ export function useUserAssignment({ users, notify, loadUsersAndRoles }) {
     const selectUser = useCallback((value) => {
         setSelectedUserId(value);
         const user = users.find(u => String(u.id) === String(value));
-        setSelectedRoleIds((user?.permission_roles || []).map(r => String(r.id)));
+        setSelectedRoleIds((user?.api_guard_roles || []).map(r => String(r.id)));
     }, [users]);
 
     const toggleRole = useCallback((roleId) => {

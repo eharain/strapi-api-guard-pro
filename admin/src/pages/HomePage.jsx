@@ -22,12 +22,14 @@ import Resources from './Resources/index.jsx';
 import Roles from './Roles/index.jsx';
 import Policies from './Policies/index.jsx';
 import DataTransfer from './DataTransfer/index.jsx';
+import Users from './Users/index.jsx';
 
 const TABS = [
     { key: 'domains', label: 'Domains' },
     { key: 'roles', label: 'Roles' },
     { key: 'resources', label: 'Resources' },
     { key: 'policies', label: 'Policies' },
+    { key: 'users', label: '👤 User Assignments' },
     { key: 'data-transfer', label: '⇅ Import / Export' },
 ];
 
@@ -219,6 +221,21 @@ export default function HomePage() {
 
                     {activeTab === 'policies' && (
                         <Policies {...commonTabProps} policies={policies} resources={resources} roles={roles} strapiTypes={strapiTypes} />
+                    )}
+
+                    {activeTab === 'users' && (
+                        <Users
+                            users={users}
+                            roleOptions={roleOptions}
+                            selectedUserId={selectedUserId}
+                            selectedRoleIds={selectedRoleIds}
+                            userSearch={userSearch}
+                            onSelectUser={selectUser}
+                            onToggleRole={toggleRole}
+                            onSaveAssignment={saveAssignment}
+                            onUserSearchChange={setUserSearch}
+                            actionLoading={userAssignmentLoading}
+                        />
                     )}
 
                     {activeTab === 'data-transfer' && (

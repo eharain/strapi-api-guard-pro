@@ -18,8 +18,9 @@ module.exports = [
   adminRoute('PUT',    '/entities/:entity/:id', 'admin.update'),
   adminRoute('DELETE', '/entities/:entity/:id', 'admin.remove'),
 
-  // Users (read-only)
-  adminRoute('GET', '/users', 'admin.listUsers'),
+  // Users (read + role assignment)
+  adminRoute('GET', '/users',          'admin.listUsers'),
+  adminRoute('PUT', '/users/:id/roles','admin.assignUserRoles'),
 
   // Strapi catalog
   adminRoute('GET', '/strapi-content-types',     'admin.strapiContentTypes'),
